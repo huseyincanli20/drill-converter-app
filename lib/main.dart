@@ -738,7 +738,7 @@ class _DrillTechnicalDrawingScreenState
                               1: pw.FlexColumnWidth(1.0),
                               2: pw.FlexColumnWidth(1.0),
                               3: pw.FlexColumnWidth(1.0),
-                              4: pw.FlexColumnWidth(1.2),
+                              4: pw.FlexColumnWidth(1.0),
                               5: pw.FlexColumnWidth(1.0),
                             },
                             children: [
@@ -869,8 +869,9 @@ class _DrillTechnicalDrawingScreenState
     final double tipX = -totalLength / 2;
     final double shankX = totalLength / 2;
     final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    final double endMillFaceLen = isEndMill ? (r1 * 0.22).clamp(0.5, 1.2) : 0.0;
     final double pointLen = isEndMill
-        ? 0.0
+        ? endMillFaceLen
         : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
     final double fluteStartX = tipX + pointLen;
     final double fluteEndX = tipX + fluteLength;
@@ -880,14 +881,60 @@ class _DrillTechnicalDrawingScreenState
     const double angleStep = 2 * math.pi / radialSegments;
     final Color coatingCol = toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color;
 
-    // Tip Geometry
+    // Tip Geometry (Düz Freze / Parmak Freze Ucu vs Matkap Ucu)
     if (isEndMill) {
-      final List<_Vec3> diskVertices = [];
-      for (int i = 0; i < radialSegments; i++) {
-        final double theta = i * angleStep;
-        diskVertices.add(_Vec3(fluteStartX, r1 * 0.92 * math.cos(theta), r1 * 0.92 * math.sin(theta)));
+      final int flutes = fluteCount;
+      final int segmentsPerFlute = radialSegments ~/ flutes;
+      final _Vec3 centerDish = _Vec3(tipX + 0.35, 0, 0);
+
+      // Z-Ağızlı Alın Kesici Fasetleri (Primary Relief, Secondary Relief, Gash)
+      for (int k = 0; k < flutes; k++) {
+        final double baseAngle = k * (2 * math.pi / flutes);
+
+        for (int j = 0; j < segmentsPerFlute; j++) {
+          final double thA = baseAngle + j * angleStep;
+          final double thB = baseAngle + (j + 1) * angleStep;
+          final double tMid = (j + 0.5) / segmentsPerFlute;
+
+          double xEdgeA = tipX;
+          double xEdgeB = tipX;
+          Color facetColor;
+
+          if (tMid < 0.40) {
+            xEdgeA = tipX + (tMid * 0.4) * endMillFaceLen;
+            xEdgeB = tipX + ((j + 1) / segmentsPerFlute * 0.4) * endMillFaceLen;
+            facetColor = Color.lerp(coatingCol, Colors.white, 0.45)!;
+          } else if (tMid < 0.75) {
+            final double dt = (tMid - 0.40) / 0.35;
+            xEdgeA = tipX + (0.4 + dt * 0.4) * endMillFaceLen;
+            xEdgeB = tipX + (0.4 + dt * 0.4) * endMillFaceLen;
+            facetColor = Color.lerp(coatingCol, const Color(0xFFFFB300), 0.35)!;
+          } else {
+            xEdgeA = tipX + endMillFaceLen;
+            xEdgeB = tipX + endMillFaceLen;
+            facetColor = const Color(0xFF1E293B);
+          }
+
+          final double rA = (tMid > 0.75) ? r1 * 0.65 : r1 * 0.92;
+          final double rB = ((j + 1) / segmentsPerFlute > 0.75) ? r1 * 0.65 : r1 * 0.92;
+
+          final vA = _Vec3(xEdgeA, rA * math.cos(thA), rA * math.sin(thA));
+          final vB = _Vec3(xEdgeB, rB * math.cos(thB), rB * math.sin(thB));
+
+          rawFaces.add(_Face3D(vertices: [centerDish, vB, vA], color: facetColor));
+        }
       }
-      rawFaces.add(_Face3D(vertices: diskVertices, color: coatingCol));
+
+      // 45° Köşe Koruma Pahı (Corner Chamfer)
+      for (int i = 0; i < radialSegments; i++) {
+        final double th1 = i * angleStep;
+        final double th2 = (i + 1) * angleStep;
+        final v1 = _Vec3(tipX, r1 * 0.92 * math.cos(th1), r1 * 0.92 * math.sin(th1));
+        final v2 = _Vec3(tipX, r1 * 0.92 * math.cos(th2), r1 * 0.92 * math.sin(th2));
+        final v3 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
+        final v4 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
+        rawFaces.add(_Face3D(vertices: [v1, v4, v3, v2], color: Color.lerp(coatingCol, Colors.white, 0.3)!));
+      }
     } else {
       final int flutes = fluteCount;
       final int segmentsPerFlute = radialSegments ~/ flutes;
@@ -998,11 +1045,25 @@ class _DrillTechnicalDrawingScreenState
       final double threadStartX = threadEndX - threadLength;
       final double hexEndX = threadStartX;
       final double hexStartX = hexEndX - hexLength;
-      final double bodyEndX = hexStartX - 2.5;
       final double hexRadius = (hexWidth / 2) / math.cos(math.pi / 6);
 
-      _addCylinderRingMath(rawFaces, reachEndX, bodyEndX, r2, r2, radialSegments, const Color(0xFF475569));
-      _addCylinderRingMath(rawFaces, bodyEndX, hexStartX, r2, hexRadius * 0.95, radialSegments, const Color(0xFF334155));
+      // Silindirik Sap: Sapa tamamen düz devam eder (Omuzda ovallik/şişkinlik yok, tam silindirik)
+      _addCylinderRingMath(rawFaces, reachEndX, hexStartX, r2, r2, radialSegments, const Color(0xFF475569));
+
+      // Somun Ön Alın / Washer Face Omuzu (r2'den hexRadius'a düz fatura yüzeyi)
+      if (hexRadius * 0.95 > r2) {
+        const int hexSides = 6;
+        const double hexAngleStep = 2 * math.pi / hexSides;
+        for (int i = 0; i < hexSides; i++) {
+          final double th1 = i * hexAngleStep;
+          final double th2 = (i + 1) * hexAngleStep;
+          final w1 = _Vec3(hexStartX, r2 * math.cos(th1), r2 * math.sin(th1));
+          final w2 = _Vec3(hexStartX, r2 * math.cos(th2), r2 * math.sin(th2));
+          final w3 = _Vec3(hexStartX, hexRadius * 0.95 * math.cos(th2), hexRadius * 0.95 * math.sin(th2));
+          final w4 = _Vec3(hexStartX, hexRadius * 0.95 * math.cos(th1), hexRadius * 0.95 * math.sin(th1));
+          rawFaces.add(_Face3D(vertices: [w1, w2, w3, w4], color: const Color(0xFF64748B)));
+        }
+      }
 
       // Hex Collar
       const int hexSides = 6;
@@ -1216,12 +1277,18 @@ class _DrillTechnicalDrawingScreenState
     if (toolTipType == 'endmill') {
       canvas.setColor(PdfColors.black);
       canvas.setLineWidth(1.2);
-      canvas.moveTo(cxA - rA, cyA); canvas.lineTo(cxA + rA, cyA);
-      canvas.moveTo(cxA, cyA - rA); canvas.lineTo(cxA, cyA + rA);
-      canvas.strokePath();
-      canvas.drawString(pdfFont, 6.5, '• 4 Agizli Duz Freze', 85, cyA + 8);
-      canvas.drawString(pdfFont, 6.5, '• Alin Kesici Agiz', 85, cyA - 2);
-      canvas.drawString(pdfFont, 6.5, '• Kose Pahi 45°', 85, cyA - 12);
+      for (int k = 0; k < fluteCount; k++) {
+        final double th = k * (2 * math.pi / fluteCount);
+        canvas.moveTo(cxA, cyA);
+        canvas.lineTo(cxA + rA * 0.95 * math.cos(th), cyA + rA * 0.95 * math.sin(th));
+        canvas.strokePath();
+      }
+      canvas.setFillColor(PdfColors.amber800);
+      canvas.drawEllipse(cxA, cyA, 2.2, 2.2); canvas.fillPath();
+
+      canvas.drawString(pdfFont, 6.5, '• Z = $fluteCount Duz Freze Alin', 85, cyA + 8);
+      canvas.drawString(pdfFont, 6.5, '• Alin Kesici Agizlar', 85, cyA - 2);
+      canvas.drawString(pdfFont, 6.5, '• Kose Pahi 45 deg', 85, cyA - 12);
     } else if (fluteCount == 2) {
       const double chiselAngle = 135.0 * math.pi / 180.0;
       const double halfWeb = 3.2;
@@ -1518,7 +1585,7 @@ class _DrillTechnicalDrawingScreenState
                                         1: FlexColumnWidth(1.0),
                                         2: FlexColumnWidth(1.0),
                                         3: FlexColumnWidth(1.0),
-                                        4: FlexColumnWidth(1.2),
+                                        4: FlexColumnWidth(1.0),
                                         5: FlexColumnWidth(1.0),
                                       },
                                       children: [
@@ -2120,12 +2187,16 @@ class _DrillTechnicalDrawingScreenState
   }
 
   void _drawPdfArrow(PdfGraphics canvas, double tipX, double tipY, double dirX, double dirY, PdfColor color, {double size = 5.0, double width = 2.2}) {
-    final normX = -dirY;
-    final normY = dirX;
-    final p1X = tipX - dirX * size + normX * width;
-    final p1Y = tipY - dirY * size + normY * width;
-    final p2X = tipX - dirX * size - normX * width;
-    final p2Y = tipY - dirY * size - normY * width;
+    final double len = math.sqrt(dirX * dirX + dirY * dirY);
+    if (len < 0.001) return;
+    final double ux = dirX / len;
+    final double uy = dirY / len;
+    final double normX = -uy;
+    final double normY = ux;
+    final double p1X = tipX - ux * size + normX * width;
+    final double p1Y = tipY - uy * size + normY * width;
+    final double p2X = tipX - ux * size - normX * width;
+    final double p2Y = tipY - uy * size - normY * width;
     canvas.setColor(color);
     canvas.moveTo(tipX, tipY);
     canvas.lineTo(p1X, p1Y);
@@ -2708,24 +2779,42 @@ class _DrillTechnicalDrawingScreenState
                     ),
                     const SizedBox(height: 12),
 
-                    // Alt Hızlı Ölçü Çipleri (l3 Kırmızı Vurgulu!)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _buildParamChip('Ağız Sayısı', 'Z = $fluteCount (${fluteCount == 2 ? "2 Ağızlı" : "3 Ağızlı"})', const Color(0xFF00E5FF)),
-                        _buildParamChip('d1 (h9)', 'Ø ${drillDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF)),
-                        _buildParamChip('d2 (h6)', 'Ø ${shankDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF)),
-                        _buildParamChip('d3 (Boyun)', 'Ø ${neckDiameter.toStringAsFixed(2)} mm', Colors.grey),
-                        _buildParamChip('l2 (Kesme)', '${fluteLength.toStringAsFixed(1)} mm', Colors.white70),
-                        _buildParamChip('l3 (Kullanılabilir)', '${reachLength.toStringAsFixed(1)} mm', const Color(0xFFE53935), isHighlight: true),
-                        _buildParamChip('l1 (Tam Boy)', '${totalLength.toStringAsFixed(1)} mm', const Color(0xFFFFB300)),
-                        if (hasThreadedShank) ...[
-                          _buildParamChip('⬡ Somun (Kafa)', 'SW ${hexWidth.toStringAsFixed(2)} mm', const Color(0xFFFFB300)),
-                          _buildParamChip('🔩 Vida (Diş)', '1/4"-28 (Ø${threadDiameter.toStringAsFixed(2)})', const Color(0xFFFFB300)),
-                        ],
-                      ],
+                    // Alt Hızlı Ölçü Kartları (Eşit Genişlik ve Yükseklikte Düzenli Parametre Tablosu)
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double availWidth = constraints.maxWidth;
+                        int cols = 4;
+                        if (availWidth < 460) {
+                          cols = 2;
+                        } else if (availWidth < 720) {
+                          cols = 3;
+                        } else if (availWidth < 1000) {
+                          cols = 4;
+                        } else {
+                          cols = hasThreadedShank ? 5 : 4;
+                        }
+                        const double gap = 8.0;
+                        final double itemWidth = ((availWidth - (cols - 1) * gap) / cols).floorToDouble();
+
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          alignment: WrapAlignment.start,
+                          children: [
+                            _buildEqualParamCard('Ağız Sayısı', 'Z = $fluteCount (${fluteCount == 2 ? "2 Ağızlı" : "3 Ağızlı"})', const Color(0xFF00E5FF), width: itemWidth),
+                            _buildEqualParamCard('d1 (h9) Çap', 'Ø ${drillDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF), width: itemWidth),
+                            _buildEqualParamCard('d2 (h6) Sap', 'Ø ${shankDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF), width: itemWidth),
+                            _buildEqualParamCard('d3 (Boyun)', 'Ø ${neckDiameter.toStringAsFixed(2)} mm', Colors.grey, width: itemWidth),
+                            _buildEqualParamCard('l2 (Kesme)', '${fluteLength.toStringAsFixed(1)} mm', Colors.white70, width: itemWidth),
+                            _buildEqualParamCard('l3 (Kullanılabilir)', '${reachLength.toStringAsFixed(1)} mm', const Color(0xFFE53935), isHighlight: true, width: itemWidth),
+                            _buildEqualParamCard('l1 (Tam Boy)', '${totalLength.toStringAsFixed(1)} mm', const Color(0xFFFFB300), width: itemWidth),
+                            if (hasThreadedShank) ...[
+                              _buildEqualParamCard('⬡ Somun (Kafa)', 'SW ${hexWidth.toStringAsFixed(2)} mm', const Color(0xFFFFB300), width: itemWidth),
+                              _buildEqualParamCard('🔩 Vida (Diş)', '1/4"-28 UNF', const Color(0xFFFFB300), width: itemWidth),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -3477,37 +3566,49 @@ class _DrillTechnicalDrawingScreenState
   );
   }
 
-  Widget _buildParamChip(String label, String value, Color color, {bool isHighlight = false}) {
+  Widget _buildEqualParamCard(String label, String value, Color color, {bool isHighlight = false, required double width}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      width: width,
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isHighlight ? const Color(0xFFE53935).withOpacity(0.18) : const Color(0xFF0F141C),
-        borderRadius: BorderRadius.circular(6),
+        color: isHighlight
+            ? const Color(0xFFE53935).withOpacity(0.18)
+            : const Color(0xFF111823),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isHighlight ? const Color(0xFFE53935) : color.withOpacity(0.4),
-          width: isHighlight ? 1.4 : 1.0,
+          color: isHighlight ? const Color(0xFFE53935) : color.withOpacity(0.45),
+          width: isHighlight ? 1.5 : 1.0,
         ),
       ),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 11),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isHighlight ? const Color(0xFFFF5252) : color,
-              ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.bold,
+              color: isHighlight ? const Color(0xFFFF5252) : color,
+              letterSpacing: 0.3,
             ),
-            TextSpan(
-              text: value,
-              style: TextStyle(
-                fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
-                color: isHighlight ? Colors.white : Colors.white70,
-              ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+              color: isHighlight ? Colors.white : Colors.white,
+              fontFamily: 'monospace',
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -4147,8 +4248,9 @@ class Tool3DModelPainter extends CustomPainter {
     final double shankX = totalLength / 2;
 
     final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    final double endMillFaceLen = isEndMill ? (r1 * 0.22).clamp(0.5, 1.2) : 0.0;
     final double pointLen = isEndMill
-        ? 0.0
+        ? endMillFaceLen
         : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
 
     const int radialSegments = 48; // 48: 2, 3, 4, 6, 8, 12, 16, 24 ile tam bölünen pürüzsüz silindirik çözünürlük
@@ -4157,39 +4259,71 @@ class Tool3DModelPainter extends CustomPainter {
     // A. Uç (Tip) Modeli
     final double fluteStartX = tipX + pointLen;
     if (isEndMill) {
-      // Düz Freze: Düz ön alın yüzeyi (End-Mill Flat Face) & 4 Kesici Ağız
-      final List<_Vec3> diskVertices = [];
-      for (int i = 0; i < radialSegments; i++) {
-        final double theta = i * angleStep;
-        diskVertices.add(_Vec3(fluteStartX, r1 * 0.92 * math.cos(theta), r1 * 0.92 * math.sin(theta)));
-      }
-      rawFaces.add(_Face3D(
-        vertices: diskVertices,
-        color: coatingColor,
-      ));
+      // Düz Freze: Gerçekçi Z-Ağızlı Alın Kesici Geometri, Çanak Eğimi (Dish Recess), Fasetler ve Köşe Pahı
+      final int flutes = fluteCount;
+      final int segmentsPerFlute = radialSegments ~/ flutes;
+      final _Vec3 centerDish = _Vec3(tipX + 0.35, 0, 0);
 
-      // Köşe Pahı (Corner Chamfer 45°)
+      // Z Kesici Ağız Alın Fasetleri (Primary Relief, Secondary Relief, Gash)
+      for (int k = 0; k < flutes; k++) {
+        final double baseAngle = k * (2 * math.pi / flutes);
+
+        for (int j = 0; j < segmentsPerFlute; j++) {
+          final double thA = baseAngle + j * angleStep;
+          final double thB = baseAngle + (j + 1) * angleStep;
+          final double tMid = (j + 0.5) / segmentsPerFlute;
+
+          double xEdgeA = tipX;
+          double xEdgeB = tipX;
+          Color facetColor;
+
+          if (tMid < 0.40) {
+            // 1. Birincil Alın Serbestlik Yüzeyi (Primary Face Relief)
+            xEdgeA = tipX + (tMid * 0.4) * endMillFaceLen;
+            xEdgeB = tipX + ((j + 1) / segmentsPerFlute * 0.4) * endMillFaceLen;
+            facetColor = Color.lerp(coatingColor, Colors.white, 0.45)!;
+          } else if (tMid < 0.75) {
+            // 2. İkincil Alın Serbestlik Faseti (Secondary Face Relief)
+            final double dt = (tMid - 0.40) / 0.35;
+            xEdgeA = tipX + (0.4 + dt * 0.4) * endMillFaceLen;
+            xEdgeB = tipX + (0.4 + dt * 0.4) * endMillFaceLen;
+            facetColor = Color.lerp(coatingColor, const Color(0xFFFFB300), 0.35)!;
+          } else {
+            // 3. Alın Talaş Boşluğu (End Gash Pocket)
+            xEdgeA = tipX + endMillFaceLen;
+            xEdgeB = tipX + endMillFaceLen;
+            facetColor = const Color(0xFF141C24);
+          }
+
+          final double rA = (tMid > 0.75) ? r1 * 0.65 : r1 * 0.92;
+          final double rB = ((j + 1) / segmentsPerFlute > 0.75) ? r1 * 0.65 : r1 * 0.92;
+
+          final vA = _Vec3(xEdgeA, rA * math.cos(thA), rA * math.sin(thA));
+          final vB = _Vec3(xEdgeB, rB * math.cos(thB), rB * math.sin(thB));
+
+          rawFaces.add(_Face3D(vertices: [centerDish, vB, vA], color: facetColor));
+        }
+
+        // Kesici Kenar Çizgisi (Her Ağız İçin Parlak Camgöbeği Lip Line)
+        final double lipAngle = baseAngle;
+        final _Vec3 lipOuter = _Vec3(tipX, r1 * 0.92 * math.cos(lipAngle), r1 * 0.92 * math.sin(lipAngle));
+        final _Vec3 lipMid = _Vec3(tipX + 0.15, (r1 * 0.5) * math.cos(lipAngle), (r1 * 0.5) * math.sin(lipAngle));
+        rawFaces.add(_Face3D(
+          vertices: [centerDish, lipMid, lipOuter],
+          color: const Color(0xFF00E5FF),
+          isEdgeOnly: true,
+        ));
+      }
+
+      // 45° Alın Köşe Koruma Pahı (Corner Chamfer 45°)
       for (int i = 0; i < radialSegments; i++) {
         final double th1 = i * angleStep;
         final double th2 = (i + 1) * angleStep;
-        final v1 = _Vec3(fluteStartX, r1 * 0.92 * math.cos(th1), r1 * 0.92 * math.sin(th1));
-        final v2 = _Vec3(fluteStartX, r1 * 0.92 * math.cos(th2), r1 * 0.92 * math.sin(th2));
-        final v3 = _Vec3(fluteStartX + 0.35, r1 * math.cos(th2), r1 * math.sin(th2));
-        final v4 = _Vec3(fluteStartX + 0.35, r1 * math.cos(th1), r1 * math.sin(th1));
-        rawFaces.add(_Face3D(vertices: [v1, v2, v3, v4], color: Color.lerp(coatingColor, Colors.white, 0.25)!));
-      }
-
-      // Alın gash çizgileri
-      for (int i = 0; i < 4; i++) {
-        final double th = i * (math.pi / 2);
-        rawFaces.add(_Face3D(
-          vertices: [
-            _Vec3(fluteStartX - 0.1, 0, 0),
-            _Vec3(fluteStartX - 0.1, r1 * 0.90 * math.cos(th), r1 * 0.90 * math.sin(th)),
-          ],
-          color: Colors.white,
-          isEdgeOnly: true,
-        ));
+        final v1 = _Vec3(tipX, r1 * 0.92 * math.cos(th1), r1 * 0.92 * math.sin(th1));
+        final v2 = _Vec3(tipX, r1 * 0.92 * math.cos(th2), r1 * 0.92 * math.sin(th2));
+        final v3 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
+        final v4 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
+        rawFaces.add(_Face3D(vertices: [v1, v4, v3, v2], color: Color.lerp(coatingColor, Colors.white, 0.30)!));
       }
     } else {
       // GERÇEKÇİ MATKAP UCU: 2 AĞIZLI (Z=2) VEYA 3 AĞIZLI (Z=3) BİLEME VE KESİCİ AĞIZ MODELİ
@@ -4433,23 +4567,36 @@ class Tool3DModelPainter extends CustomPainter {
       }
       rawFaces.add(_Face3D(vertices: endCap, color: const Color(0xFF222B35)));
     } else {
-      // STANDART NAS 965: Gövde -> Konik Geçiş -> 6-Gen Somun Kafa (Pahlı) -> 1/4"-28 Vida (Uçta)
+      // STANDART NAS 965: Gövde -> Düz Silindirik Sap -> 6-Gen Somun Kafa (Pahlı) -> 1/4"-28 Vida (Uçta)
       final double threadEndX = shankX;
       final double threadStartX = threadEndX - threadLength;
       final double hexEndX = threadStartX;
       final double hexStartX = hexEndX - hexLength;
-      final double bodyEndX = hexStartX - 2.5;
-
-      // Gövde Silindiri
-      _addCylinderRing(rawFaces, reachEndX, bodyEndX, r2, r2, radialSegments, const Color(0xFF475569));
-      // Konik Omuz
       final double hexRadius = (hexWidth / 2) / math.cos(math.pi / 6);
-      _addCylinderRing(rawFaces, bodyEndX, hexStartX, r2, hexRadius * 0.95, radialSegments, const Color(0xFF334252));
+
+      // Gövde Silindiri: Sapa tamamen düz ve pürüzsüz devam eder (Omuzda ovallik/şişkinlik yok, tam silindirik)
+      _addCylinderRing(rawFaces, reachEndX, hexStartX, r2, r2, radialSegments, const Color(0xFF475569));
 
       // 6-Gen Somun Kafa (Havacılık 5/16" SW, 30° Ön ve Arka Pahlı / Double Chamfered Washer Face)
       const int hexSides = 6;
       const double hexAngleStep = 2 * math.pi / hexSides;
       final double hexChamferLen = math.min(1.2, hexLength * 0.18);
+
+      // Somun Ön Alın / Washer Face Omuzu (r2'den hexRadius * 0.91'e düz fatura yüzeyi)
+      if (hexRadius * 0.91 > r2) {
+        for (int i = 0; i < hexSides; i++) {
+          final double th1 = i * hexAngleStep;
+          final double th2 = (i + 1) * hexAngleStep;
+          final w1 = _Vec3(hexStartX, r2 * math.cos(th1), r2 * math.sin(th1));
+          final w2 = _Vec3(hexStartX, r2 * math.cos(th2), r2 * math.sin(th2));
+          final w3 = _Vec3(hexStartX, hexRadius * 0.91 * math.cos(th2), hexRadius * 0.91 * math.sin(th2));
+          final w4 = _Vec3(hexStartX, hexRadius * 0.91 * math.cos(th1), hexRadius * 0.91 * math.sin(th1));
+          rawFaces.add(_Face3D(
+            vertices: [w1, w2, w3, w4],
+            color: const Color(0xFF64748B),
+          ));
+        }
+      }
 
       for (int i = 0; i < hexSides; i++) {
         final double th1 = i * hexAngleStep;
@@ -5064,12 +5211,15 @@ class _DetailViews2DPainter extends CustomPainter {
     canvas.drawLine(Offset(cxA, cyA - rA - 8), Offset(cxA, cyA + rA + 8), axisP);
 
     if (toolTipType == 'endmill') {
-      final lipP = Paint()..color = Colors.white..strokeWidth = 2.0;
-      canvas.drawLine(Offset(cxA - rA, cyA), Offset(cxA + rA, cyA), lipP);
-      canvas.drawLine(Offset(cxA, cyA - rA), Offset(cxA, cyA + rA), lipP);
-      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
+      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
+      for (int k = 0; k < fluteCount; k++) {
+        final double th = k * (2 * math.pi / fluteCount);
+        canvas.drawLine(Offset(cxA, cyA), Offset(cxA + rA * 0.95 * math.cos(th), cyA + rA * 0.95 * math.sin(th)), lipP);
+      }
+      canvas.drawCircle(Offset(cxA, cyA), 3.2, Paint()..color = const Color(0xFFFFB300));
+      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=$fluteCount)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
       _drawText(canvas, '• Düz Tabanlı Freze (180° Alın)', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• 4 Ağızlı Alın Kesici Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• Z = $fluteCount Ağızlı Alın Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
       _drawText(canvas, '• 45° Köşe Koruma Pahı', Offset(105, cyA + 20), const Color(0xFFFFB300), fontSize: 9.5);
     } else if (fluteCount == 2) {
       const double chiselAngle = 135.0 * math.pi / 180.0;
