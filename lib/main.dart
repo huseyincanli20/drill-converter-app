@@ -106,8 +106,9 @@ class _DrillTechnicalDrawingScreenState
   final TransformationController _transformController = TransformationController();
 
   // Sap (Shank) Parametreleri (1/4"-28 Vidalı Sap)
-  bool hasThreadedShank = false; // Görseldeki gibi düz silindirik sap öncelikli, switch ile vidalı açılabilir
-  double threadLength = 6.35; // Dişli Bölüm Boyu (mm) - Standart 1/4" = 6.35 mm
+  bool hasThreadedShank = true; // Varsayılan olarak vidalı sap açık
+  String hexPosition = 'behind'; // 'behind' = vidalı dişin arkasında (en arka uçta), 'front' = gövde ile vida arası (NAS 965)
+  double threadLength = 8.70; // Dişli Bölüm Boyu (mm) - Standart 1/4"-28 = 8.70 mm
   double threadDiameter = 6.35; // Diş Çapı (mm) - 1/4" = 6.35 mm
   double hexLength = 7.94; // Kalın Somun Kafa Boyu (mm) - 5/16" = 7.94 mm
   double hexWidth = 7.94; // Kalın Somun Kafa Çapı / Anahtar Ağzı (mm) - 5/16" = 7.94 mm
@@ -128,7 +129,7 @@ class _DrillTechnicalDrawingScreenState
   final _reachLenInController = TextEditingController(text: '1.102');
 
   // Sap Bölümü Controller'lar (Dişli Yer ve Kalın Yer)
-  final _threadLenController = TextEditingController(text: '6.35');
+  final _threadLenController = TextEditingController(text: '8.70');
   final _threadDiamController = TextEditingController(text: '6.35');
   final _hexLenController = TextEditingController(text: '7.94');
   final _hexWidthController = TextEditingController(text: '7.94');
@@ -568,23 +569,96 @@ class _DrillTechnicalDrawingScreenState
     canvas.curveTo(reachEndX - 1, originY + halfD2, reachEndX, originY + halfD2, reachEndX + 2, originY + halfD2);
     canvas.strokePath();
 
-    // Shank Body Lines & 45° Chamfer
-    canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(shankEndX - 4, originY - halfD2);
-    canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(shankEndX - 4, originY + halfD2);
+    // Shank Body Lines & Chamfer / Threaded Hex System
+    if (!hasThreadedShank) {
+      canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(shankEndX - 4, originY - halfD2);
+      canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(shankEndX - 4, originY + halfD2);
 
-    // 45° Chamfer at rear end
-    canvas.moveTo(shankEndX - 4, originY - halfD2);
-    canvas.lineTo(shankEndX, originY - halfD2 + 4);
-    canvas.lineTo(shankEndX, originY + halfD2 - 4);
-    canvas.lineTo(shankEndX - 4, originY + halfD2);
-    canvas.strokePath();
+      // 45° Chamfer at rear end
+      canvas.moveTo(shankEndX - 4, originY - halfD2);
+      canvas.lineTo(shankEndX, originY - halfD2 + 4);
+      canvas.lineTo(shankEndX, originY + halfD2 - 4);
+      canvas.lineTo(shankEndX - 4, originY + halfD2);
+      canvas.strokePath();
+    } else {
+      final double thLenPx = (threadLength * scaleX).clamp(24.0, 70.0);
+      final double thHPx = (threadDiameter * 6.5).clamp(20.0, 52.0);
+      final double halfThH = thHPx / 2;
 
-    if (hasThreadedShank) {
-      final thLen = threadLength * scaleX;
-      for (double tx = shankEndX - thLen; tx < shankEndX - 2; tx += 3.5) {
-        canvas.moveTo(tx, originY - halfD2);
-        canvas.lineTo(tx + 2, originY + halfD2);
+      final double hxLenPx = (hexLength * scaleX).clamp(24.0, 70.0);
+      final double hxHPx = (hexWidth * 6.5).clamp(24.0, 58.0);
+      final double halfHxH = hxHPx / 2;
+
+      if (hexPosition == 'behind') {
+        // 1. Vidalı Dişin Arkasında 6-Gen Kafa (Uçta Kafa)
+        final double hexEndX = shankEndX;
+        final double hexStartX = hexEndX - hxLenPx;
+        final double threadEndX = hexStartX;
+        final double threadStartX = threadEndX - thLenPx;
+        final double bodyEndX = threadStartX;
+
+        // Gövde
+        canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(bodyEndX, originY - halfD2);
+        canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(bodyEndX, originY + halfD2);
+        // Gövdeden dişe basamak
+        canvas.moveTo(bodyEndX, originY - halfD2); canvas.lineTo(threadStartX, originY - halfThH);
+        canvas.moveTo(bodyEndX, originY + halfD2); canvas.lineTo(threadStartX, originY + halfThH);
+        // Diş dış hatları
+        canvas.moveTo(threadStartX, originY - halfThH); canvas.lineTo(threadEndX, originY - halfThH);
+        canvas.moveTo(threadStartX, originY + halfThH); canvas.lineTo(threadEndX, originY + halfThH);
+        // Dişten kafaya basamak
+        canvas.moveTo(threadEndX, originY - halfThH); canvas.lineTo(hexStartX, originY - halfHxH);
+        canvas.moveTo(threadEndX, originY + halfThH); canvas.lineTo(hexStartX, originY + halfHxH);
         canvas.strokePath();
+
+        // Diş Çizgileri
+        canvas.setColor(PdfColors.amber800);
+        canvas.setLineWidth(1.2);
+        for (double tx = threadStartX + 3; tx < threadEndX - 2; tx += 3.5) {
+          canvas.moveTo(tx, originY - halfThH);
+          canvas.lineTo(tx + 2, originY + halfThH);
+          canvas.strokePath();
+        }
+
+        // 6-Gen Kafa
+        _drawPdfHexHead(canvas, hexStartX, hexEndX, originY, halfHxH);
+      } else {
+        // 2. Gövde ile Diş Arasında 6-Gen Kafa (Standart NAS 965)
+        final double threadEndX = shankEndX;
+        final double threadStartX = threadEndX - thLenPx;
+        final double hexEndX = threadStartX;
+        final double hexStartX = hexEndX - hxLenPx;
+        final double bodyEndX = hexStartX - 6.0;
+
+        // Gövde
+        canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(bodyEndX, originY - halfD2);
+        canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(bodyEndX, originY + halfD2);
+        // Konik omuz
+        canvas.moveTo(bodyEndX, originY - halfD2); canvas.lineTo(hexStartX, originY - halfHxH);
+        canvas.moveTo(bodyEndX, originY + halfD2); canvas.lineTo(hexStartX, originY + halfHxH);
+        canvas.strokePath();
+
+        // 6-Gen Kafa
+        _drawPdfHexHead(canvas, hexStartX, hexEndX, originY, halfHxH);
+
+        // Diş dış hatları & uç pahı
+        canvas.setColor(PdfColors.black);
+        canvas.setLineWidth(1.5);
+        canvas.moveTo(threadStartX, originY - halfThH); canvas.lineTo(threadEndX - 3, originY - halfThH);
+        canvas.moveTo(threadStartX, originY + halfThH); canvas.lineTo(threadEndX - 3, originY + halfThH);
+        canvas.lineTo(threadEndX, originY + halfThH - 3);
+        canvas.lineTo(threadEndX, originY - halfThH + 3);
+        canvas.lineTo(threadEndX - 3, originY - halfThH);
+        canvas.strokePath();
+
+        // Diş Çizgileri
+        canvas.setColor(PdfColors.amber800);
+        canvas.setLineWidth(1.2);
+        for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 3.5) {
+          canvas.moveTo(tx, originY - halfThH);
+          canvas.lineTo(tx + 2, originY + halfThH);
+          canvas.strokePath();
+        }
       }
     }
 
@@ -724,6 +798,53 @@ class _DrillTechnicalDrawingScreenState
     canvas.lineTo(p2X, p2Y);
     canvas.closePath();
     canvas.fillPath();
+  }
+
+  void _drawPdfHexHead(
+    PdfGraphics canvas,
+    double hexStartX,
+    double hexEndX,
+    double originY,
+    double halfHexH,
+  ) {
+    final double facetSplit = halfHexH * 0.52;
+
+    // Yüzey dolguları (3 görünür yüzey tonu)
+    canvas.setFillColor(PdfColors.grey200);
+    canvas.drawRect(hexStartX, originY - halfHexH, hexEndX - hexStartX, halfHexH - facetSplit);
+    canvas.fillPath();
+
+    canvas.setFillColor(PdfColors.grey100);
+    canvas.drawRect(hexStartX, originY - facetSplit, hexEndX - hexStartX, facetSplit * 2);
+    canvas.fillPath();
+
+    canvas.setFillColor(PdfColors.grey200);
+    canvas.drawRect(hexStartX, originY + facetSplit, hexEndX - hexStartX, halfHexH - facetSplit);
+    canvas.fillPath();
+
+    // Dış çevre konturu
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.6);
+    canvas.drawRect(hexStartX, originY - halfHexH, hexEndX - hexStartX, halfHexH * 2);
+    canvas.strokePath();
+
+    // Yüzey ayrım çizgileri (Crease lines)
+    canvas.setColor(PdfColors.grey700);
+    canvas.setLineWidth(1.0);
+    canvas.moveTo(hexStartX, originY - facetSplit);
+    canvas.lineTo(hexEndX, originY - facetSplit);
+    canvas.moveTo(hexStartX, originY + facetSplit);
+    canvas.lineTo(hexEndX, originY + facetSplit);
+    canvas.strokePath();
+
+    // Köşe pahları (Chamfer lines)
+    canvas.setColor(PdfColors.grey600);
+    canvas.setLineWidth(0.8);
+    canvas.moveTo(hexStartX, originY - halfHexH + 2.5); canvas.lineTo(hexStartX + 2.5, originY - halfHexH);
+    canvas.moveTo(hexEndX - 2.5, originY - halfHexH); canvas.lineTo(hexEndX, originY - halfHexH + 2.5);
+    canvas.moveTo(hexStartX, originY + halfHexH - 2.5); canvas.lineTo(hexStartX + 2.5, originY + halfHexH);
+    canvas.moveTo(hexEndX - 2.5, originY + halfHexH); canvas.lineTo(hexEndX, originY + halfHexH - 2.5);
+    canvas.strokePath();
   }
 
   @override
@@ -974,6 +1095,7 @@ class _DrillTechnicalDrawingScreenState
                               toolTipType: toolTipType,
                               dimensionDisplayMode: dimensionDisplayMode,
                               hasThreadedShank: hasThreadedShank,
+                              hexPosition: hexPosition,
                               drillDiameter: drillDiameter,
                               totalLength: totalLength,
                               fluteLength: fluteLength,
@@ -1004,6 +1126,10 @@ class _DrillTechnicalDrawingScreenState
                         _buildParamChip('l2 (Kesme)', '${fluteLength.toStringAsFixed(1)} mm', Colors.white70),
                         _buildParamChip('l3 (Kullanılabilir)', '${reachLength.toStringAsFixed(1)} mm', const Color(0xFFE53935), isHighlight: true),
                         _buildParamChip('l1 (Tam Boy)', '${totalLength.toStringAsFixed(1)} mm', const Color(0xFFFFB300)),
+                        if (hasThreadedShank) ...[
+                          _buildParamChip('⬡ Somun (Kafa)', 'SW ${hexWidth.toStringAsFixed(2)} mm', const Color(0xFFFFB300)),
+                          _buildParamChip('🔩 Vida (Diş)', '1/4"-28 (Ø${threadDiameter.toStringAsFixed(2)})', const Color(0xFFFFB300)),
+                        ],
                       ],
                     ),
                   ],
@@ -1106,6 +1232,28 @@ class _DrillTechnicalDrawingScreenState
                               suffix: 'mm',
                               onChanged: (v) => _updateShankParams(),
                             ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text('6-Gen Kafa Konumu: ', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('⬡ Vida Arkasında (Uçta)', style: TextStyle(fontSize: 11)),
+                            selected: hexPosition == 'behind',
+                            selectedColor: const Color(0xFFFFB300),
+                            backgroundColor: const Color(0xFF0F141C),
+                            onSelected: (val) => setState(() => hexPosition = 'behind'),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('⬡ Gövde-Vida Arası (NAS 965)', style: TextStyle(fontSize: 11)),
+                            selected: hexPosition == 'front',
+                            selectedColor: const Color(0xFFFFB300),
+                            backgroundColor: const Color(0xFF0F141C),
+                            onSelected: (val) => setState(() => hexPosition = 'front'),
                           ),
                         ],
                       ),
@@ -1358,6 +1506,7 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
   final String toolTipType; // 'drill135', 'endmill', 'drill118'
   final String dimensionDisplayMode; // 'both', 'symbols', 'values'
   final bool hasThreadedShank;
+  final String hexPosition; // 'behind' = vida arkasında, 'front' = gövde ile vida arası
   final double drillDiameter;
   final double totalLength;
   final double fluteLength;
@@ -1375,6 +1524,7 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
     required this.toolTipType,
     required this.dimensionDisplayMode,
     required this.hasThreadedShank,
+    this.hexPosition = 'behind',
     required this.drillDiameter,
     required this.totalLength,
     required this.fluteLength,
@@ -1533,22 +1683,99 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
       ..cubicTo(reachEndX - 1, centerY + halfD2, reachEndX, centerY + halfD2, reachEndX + 3, centerY + halfD2);
     canvas.drawPath(stepUpBottom, contourPaint);
 
-    // Sap Hatları ve Arka 45° Pah
-    canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(shankEndX - 4, centerY - halfD2), contourPaint);
-    canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(shankEndX - 4, centerY + halfD2), contourPaint);
+    if (!hasThreadedShank) {
+      // Sap Hatları ve Arka 45° Pah
+      canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(shankEndX - 4, centerY - halfD2), contourPaint);
+      canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(shankEndX - 4, centerY + halfD2), contourPaint);
 
-    final chamferPath = Path()
-      ..moveTo(shankEndX - 4, centerY - halfD2)
-      ..lineTo(shankEndX, centerY - halfD2 + 4)
-      ..lineTo(shankEndX, centerY + halfD2 - 4)
-      ..lineTo(shankEndX - 4, centerY + halfD2);
-    canvas.drawPath(chamferPath, contourPaint);
+      final chamferPath = Path()
+        ..moveTo(shankEndX - 4, centerY - halfD2)
+        ..lineTo(shankEndX, centerY - halfD2 + 4)
+        ..lineTo(shankEndX, centerY + halfD2 - 4)
+        ..lineTo(shankEndX - 4, centerY + halfD2);
+      canvas.drawPath(chamferPath, contourPaint);
+    } else {
+      // VİDALI SAP VE 6-GEN SOMUN KAFA
+      final double thLenPx = (threadLength * scaleX).clamp(24.0, 70.0);
+      final double thHPx = (threadDiameter * 7.0).clamp(20.0, 52.0);
+      final double halfThH = thHPx / 2;
 
-    if (hasThreadedShank) {
-      final threadLenPx = threadLength * scaleX;
-      final threadLinePaint = Paint()..color = const Color(0xFFFFB300)..strokeWidth = 1.6;
-      for (double tx = shankEndX - threadLenPx; tx < shankEndX - 2; tx += 4.0) {
-        canvas.drawLine(Offset(tx, centerY - halfD2), Offset(tx + 2, centerY + halfD2), threadLinePaint);
+      final double hxLenPx = (hexLength * scaleX).clamp(24.0, 70.0);
+      final double hxHPx = (hexWidth * 7.0).clamp(24.0, 60.0);
+      final double halfHxH = hxHPx / 2;
+
+      if (hexPosition == 'behind') {
+        // 1. Vidalı Dişin Arkasında 6-Gen Kafa (Uçta Kafa)
+        final double hexEndX = shankEndX;
+        final double hexStartX = hexEndX - hxLenPx;
+        final double threadEndX = hexStartX;
+        final double threadStartX = threadEndX - thLenPx;
+        final double bodyEndX = threadStartX;
+
+        // Silindirik Gövde Hatları
+        canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(bodyEndX, centerY - halfD2), contourPaint);
+        canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(bodyEndX, centerY + halfD2), contourPaint);
+
+        // Gövdeden Dişe Basamak
+        canvas.drawLine(Offset(bodyEndX, centerY - halfD2), Offset(threadStartX, centerY - halfThH), contourPaint);
+        canvas.drawLine(Offset(bodyEndX, centerY + halfD2), Offset(threadStartX, centerY + halfThH), contourPaint);
+
+        // Vidalı Kısım Dış Çizgileri
+        canvas.drawLine(Offset(threadStartX, centerY - halfThH), Offset(threadEndX, centerY - halfThH), contourPaint);
+        canvas.drawLine(Offset(threadStartX, centerY + halfThH), Offset(threadEndX, centerY + halfThH), contourPaint);
+
+        // Vida Diş Çizgileri (45° açılı)
+        final threadLinePaint = Paint()
+          ..color = isCatalogWhiteMode ? const Color(0xFFD97706) : const Color(0xFFFFB300)
+          ..strokeWidth = 1.6;
+        for (double tx = threadStartX + 3; tx < threadEndX - 2; tx += 4.0) {
+          canvas.drawLine(Offset(tx, centerY - halfThH), Offset(tx + 2.5, centerY + halfThH), threadLinePaint);
+        }
+
+        // Dişten 6-Gen Kafaya Geçiş
+        canvas.drawLine(Offset(threadEndX, centerY - halfThH), Offset(hexStartX, centerY - halfHxH), contourPaint);
+        canvas.drawLine(Offset(threadEndX, centerY + halfThH), Offset(hexStartX, centerY + halfHxH), contourPaint);
+
+        // 6-Gen Somun Kafa (3 Yüzeyli, Crease Çizgili, Pahlı)
+        _drawHexHead(canvas, hexStartX, hexEndX, centerY, halfHxH, contourPaint, isCatalogWhiteMode);
+      } else {
+        // 2. Gövde ile Diş Arasında 6-Gen Kafa (Standart NAS 965 - Fotoğraftaki gibi)
+        final double threadEndX = shankEndX;
+        final double threadStartX = threadEndX - thLenPx;
+        final double hexEndX = threadStartX;
+        final double hexStartX = hexEndX - hxLenPx;
+        final double bodyEndX = hexStartX - 6.0;
+
+        // Silindirik Gövde Hatları
+        canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(bodyEndX, centerY - halfD2), contourPaint);
+        canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(bodyEndX, centerY + halfD2), contourPaint);
+
+        // Gövdeden 6-Gen Kafaya Konik Omuz (Taper Transition)
+        canvas.drawLine(Offset(bodyEndX, centerY - halfD2), Offset(hexStartX, centerY - halfHxH), contourPaint);
+        canvas.drawLine(Offset(bodyEndX, centerY + halfD2), Offset(hexStartX, centerY + halfHxH), contourPaint);
+
+        // 6-Gen Somun Kafa
+        _drawHexHead(canvas, hexStartX, hexEndX, centerY, halfHxH, contourPaint, isCatalogWhiteMode);
+
+        // Vidalı Kısım Dış Çizgileri
+        canvas.drawLine(Offset(threadStartX, centerY - halfThH), Offset(threadEndX - 3, centerY - halfThH), contourPaint);
+        canvas.drawLine(Offset(threadStartX, centerY + halfThH), Offset(threadEndX - 3, centerY + halfThH), contourPaint);
+
+        // Uç Pahı
+        final tipChamfer = Path()
+          ..moveTo(threadEndX - 3, centerY - halfThH)
+          ..lineTo(threadEndX, centerY - halfThH + 3)
+          ..lineTo(threadEndX, centerY + halfThH - 3)
+          ..lineTo(threadEndX - 3, centerY + halfThH);
+        canvas.drawPath(tipChamfer, contourPaint);
+
+        // Vida Diş Çizgileri
+        final threadLinePaint = Paint()
+          ..color = isCatalogWhiteMode ? const Color(0xFFD97706) : const Color(0xFFFFB300)
+          ..strokeWidth = 1.6;
+        for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 4.0) {
+          canvas.drawLine(Offset(tx, centerY - halfThH), Offset(tx + 2.5, centerY + halfThH), threadLinePaint);
+        }
       }
     }
 
@@ -1723,12 +1950,73 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
     textPainter.paint(canvas, drawOffset);
   }
 
+  void _drawHexHead(
+    Canvas canvas,
+    double hexStartX,
+    double hexEndX,
+    double centerY,
+    double halfHexH,
+    Paint contourPaint,
+    bool isWhiteMode,
+  ) {
+    final double facetSplit = halfHexH * 0.52;
+
+    // Yüzey dolguları (3 görünür yüzey tonu)
+    final faceFillCenter = Paint()
+      ..style = PaintingStyle.fill
+      ..color = isWhiteMode ? const Color(0xFFF1F3F5) : const Color(0xFF2C3947);
+    final faceFillSides = Paint()
+      ..style = PaintingStyle.fill
+      ..color = isWhiteMode ? const Color(0xFFE2E6EA) : const Color(0xFF1D2631);
+
+    // Üst yüzey
+    canvas.drawRect(
+      Rect.fromLTRB(hexStartX, centerY - halfHexH, hexEndX, centerY - facetSplit),
+      faceFillSides,
+    );
+    // Orta yüzey
+    canvas.drawRect(
+      Rect.fromLTRB(hexStartX, centerY - facetSplit, hexEndX, centerY + facetSplit),
+      faceFillCenter,
+    );
+    // Alt yüzey
+    canvas.drawRect(
+      Rect.fromLTRB(hexStartX, centerY + facetSplit, hexEndX, centerY + halfHexH),
+      faceFillSides,
+    );
+
+    // Dış çevre konturu
+    canvas.drawRect(
+      Rect.fromLTRB(hexStartX, centerY - halfHexH, hexEndX, centerY + halfHexH),
+      contourPaint,
+    );
+
+    // Yüzey ayrım çizgileri (Crease lines)
+    final creasePaint = Paint()
+      ..color = isWhiteMode ? const Color(0xFF495057) : const Color(0xFF00E5FF).withOpacity(0.7)
+      ..strokeWidth = 1.3;
+    canvas.drawLine(Offset(hexStartX, centerY - facetSplit), Offset(hexEndX, centerY - facetSplit), creasePaint);
+    canvas.drawLine(Offset(hexStartX, centerY + facetSplit), Offset(hexEndX, centerY + facetSplit), creasePaint);
+
+    // Köşe pahları (Chamfer lines)
+    final chamferPaint = Paint()
+      ..color = isWhiteMode ? const Color(0xFF6C757D) : const Color(0xFF90CAF9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    canvas.drawLine(Offset(hexStartX, centerY - halfHexH + 3), Offset(hexStartX + 3, centerY - halfHexH), chamferPaint);
+    canvas.drawLine(Offset(hexEndX - 3, centerY - halfHexH), Offset(hexEndX, centerY - halfHexH + 3), chamferPaint);
+    canvas.drawLine(Offset(hexStartX, centerY + halfHexH - 3), Offset(hexStartX + 3, centerY + halfHexH), chamferPaint);
+    canvas.drawLine(Offset(hexEndX - 3, centerY + halfHexH), Offset(hexEndX, centerY + halfHexH - 3), chamferPaint);
+  }
+
   @override
   bool shouldRepaint(covariant IndustrialCatalogDrillPainter oldDelegate) {
     return oldDelegate.isCatalogWhiteMode != isCatalogWhiteMode ||
         oldDelegate.toolTipType != toolTipType ||
         oldDelegate.dimensionDisplayMode != dimensionDisplayMode ||
         oldDelegate.hasThreadedShank != hasThreadedShank ||
+        oldDelegate.hexPosition != hexPosition ||
         oldDelegate.drillDiameter != drillDiameter ||
         oldDelegate.totalLength != totalLength ||
         oldDelegate.fluteLength != fluteLength ||

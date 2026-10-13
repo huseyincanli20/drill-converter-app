@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print, prefer_const_declarations
 import 'dart:io';
 
 void main() async {
