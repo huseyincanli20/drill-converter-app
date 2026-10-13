@@ -89,7 +89,8 @@ class DrillTechnicalDrawingScreen extends StatefulWidget {
 }
 
 class _DrillTechnicalDrawingScreenState
-    extends State<DrillTechnicalDrawingScreen> {
+    extends State<DrillTechnicalDrawingScreen>
+    with SingleTickerProviderStateMixin {
   // ISO / DIN Takım ve Matkap Parametreleri (mm)
   double drillDiameter = 3.26; // d1: Matkap / Kesme Çapı (h9)
   double totalLength = 54.0; // l1: Tam Boy
@@ -97,17 +98,195 @@ class _DrillTechnicalDrawingScreenState
   double reachLength = 28.0; // l3: Boyunlu / Kullanılabilir Boy (KIRMIZI VURGULU)
   double neckDiameter = 3.00; // d3: Boyun Çapı
   double shankDiameter = 6.35; // d2: Sap Çapı (h6)
-  double pointAngle = 135.0; // Uç Açısı (135° veya 180° Düz Freze)
+  double pointAngle = 180.0; // Uç Açısı (Varsayılan: Düz Freze 180°, listeden değiştirilebilir)
 
   // Görünüm & Katalog Ayarları
-  bool isCatalogWhiteMode = true; // Varsayılan: Katalog Beyazı (Kullanıcının görselindeki gibi)
-  String toolTipType = 'endmill'; // 'endmill' (Düz Freze - görseldeki gibi) veya 'drill135' (135° Havacılık)
-  String dimensionDisplayMode = 'both'; // 'both' (d1: Ø3.26 h9), 'symbols' (d1 h9), 'values' (Ø 3.26 mm)
+  bool isCatalogWhiteMode = true; // Varsayılan: Katalog Beyazı
+  String toolTipType = 'endmill'; // 'endmill' (Düz Freze) veya 'drill135', 'drill118', 'drill140', 'drill90', 'drill60'
+  String dimensionDisplayMode = 'both'; // 'both', 'symbols', 'values'
   final TransformationController _transformController = TransformationController();
 
-  // Sap (Shank) Parametreleri (1/4"-28 Vidalı Sap)
+  // 3D Teknik Resim & Model Durumu
+  bool is3DMode = false; // 2D ISO Çizim vs 3D CAD Modeli
+  double rotX = 0.40; // 3D Pitch
+  double rotY = -0.70; // 3D Yaw
+  double rotZ = 0.0;
+  double zoom3D = 1.0;
+  bool isAutoRotating = false;
+  bool is3DWireframe = false;
+  String renderStyle3D = 'solid'; // 'solid' (Katı Model) veya 'wireframe' (Tel Kafes)
+  late final AnimationController _autoRotateController;
+
+  // Uç Açısı ve Geometri Listesi
+  final List<Map<String, dynamic>> standardTipAngles = [
+    {
+      'id': 'endmill',
+      'label': '⬛ Düz Freze Ucu (0° / 180° - End Mill)',
+      'shortLabel': '⬛ Düz Freze',
+      'angle': 180.0,
+      'toolTipType': 'endmill',
+      'desc': 'Düz tabanlı frezeleme, havşa yuvası düzeltme ve yüzey işleme.',
+    },
+    {
+      'id': 'drill135',
+      'label': '📐 135° Matkap Ucu (Havacılık / Split Point)',
+      'shortLabel': '📐 135° Havacılık',
+      'angle': 135.0,
+      'toolTipType': 'drill135',
+      'desc': 'NAS 907/965 standardı. Titanyum, Inconel ve paslanmaz çelik için kaymayı önleyen çapraz bileme (split point).',
+    },
+    {
+      'id': 'drill118',
+      'label': '📐 118° Standart Matkap (Genel Amaçlı)',
+      'shortLabel': '📐 118° Standart',
+      'angle': 118.0,
+      'toolTipType': 'drill118',
+      'desc': 'DIN 338 standardı. Yapı çelikleri, pirinç, yumuşak metaller ve plastik delme.',
+    },
+    {
+      'id': 'drill140',
+      'label': '📐 140° Yüksek Hız Karbür Matkap',
+      'shortLabel': '📐 140° Karbür',
+      'angle': 140.0,
+      'toolTipType': 'drill140',
+      'desc': 'DIN 6537 standardı. CNC rijit işleme, derin delikler ve yüksek kesme hızları.',
+    },
+    {
+      'id': 'spot90',
+      'label': '📐 90° Havşa ve Punta (Countersink / Spotting)',
+      'shortLabel': '📐 90° Havşa',
+      'angle': 90.0,
+      'toolTipType': 'drill90',
+      'desc': '90° perçin ve vida havşası açma, delik ağzı pahı kırma.',
+    },
+    {
+      'id': 'center60',
+      'label': '📐 60° Torna Punta / Merkezleme Matkabı',
+      'shortLabel': '📐 60° Merkezleme',
+      'angle': 60.0,
+      'toolTipType': 'drill60',
+      'desc': 'DIN 333 Tip A. Torna punta yuvası ve hassas eksen kılavuzlama.',
+    },
+  ];
+  String selectedTipId = 'endmill';
+
+  // Hammadde ve Sertlik Listesi
+  final List<Map<String, dynamic>> toolMaterials = [
+    {
+      'id': 'm42',
+      'name': 'HSS-Co %8 (Cobalt M42 / 1.3247)',
+      'standard': 'NAS 907 Tip J / NAS 965 Tip D',
+      'hardness': '67 - 69 HRC',
+      'hardnessHv': '900 - 980 HV',
+      'hardnessHra': '85.5 - 86.5 HRA',
+      'temp': '650°C',
+      'badge': 'Havacılık Standardı',
+      'badgeColor': const Color(0xFF00E5FF),
+      'app': 'Titanyum Ti-6Al-4V, Paslanmaz Çelik (316/321), Inconel 718',
+    },
+    {
+      'id': 'm35',
+      'name': 'HSS-Co %5 (Cobalt M35 / HSSE / 1.3243)',
+      'standard': 'DIN 338 Co5 / DIN 1897',
+      'hardness': '64 - 66 HRC',
+      'hardnessHv': '800 - 870 HV',
+      'hardnessHra': '83.5 - 85.0 HRA',
+      'temp': '600°C',
+      'badge': 'Aşınma Dirençli',
+      'badgeColor': const Color(0xFFFFB300),
+      'app': 'Yüksek mukavemetli çelikler, korozyon dayanımlı alaşımlar',
+    },
+    {
+      'id': 'm2',
+      'name': 'HSS (M2 / 1.3343 - Standart Yüksek Hız Çeliği)',
+      'standard': 'DIN 338 Tip N / NAS 907 Tip A',
+      'hardness': '62 - 64 HRC',
+      'hardnessHv': '750 - 810 HV',
+      'hardnessHra': '82.0 - 83.5 HRA',
+      'temp': '550°C',
+      'badge': 'Ekonomik / Standart',
+      'badgeColor': Colors.grey,
+      'app': 'Genel yapı çelikleri, dökme demir, pirinç, yumuşak metaller',
+    },
+    {
+      'id': 'vhm',
+      'name': 'VHM Solid Karbür (Mikro Taneli Tungsten Karbür)',
+      'standard': 'DIN 6537 / ISO K10-K40',
+      'hardness': '91 - 93 HRA (~74 HRC)',
+      'hardnessHv': '1600 - 1850 HV',
+      'hardnessHra': '91.5 - 93.0 HRA',
+      'temp': '900°C',
+      'badge': 'Ultra Sert / CNC',
+      'badgeColor': const Color(0xFF76FF03),
+      'app': 'Havacılık kompozitleri (CFRP), Karbon fiber, Titanyum ve CNC seri üretim',
+    },
+    {
+      'id': 'pm_hss',
+      'name': 'PM-HSS Toz Metalurjisi (ASP 2030 / ASP 2060)',
+      'standard': 'ASTM A600 / Yüksek Tokluk',
+      'hardness': '66 - 68 HRC',
+      'hardnessHv': '880 - 950 HV',
+      'hardnessHra': '85.0 - 86.0 HRA',
+      'temp': '640°C',
+      'badge': 'Kırılma Dirençli',
+      'badgeColor': const Color(0xFFE040FB),
+      'app': 'Kesintili kesme, derin delik ve darbe alan zorlu havacılık parçaları',
+    },
+  ];
+
+  final List<Map<String, dynamic>> toolCoatings = [
+    {
+      'id': 'tialn',
+      'name': 'TiAlN (Titanyum Alüminyum Nitrür - Havacılık)',
+      'shortName': 'TiAlN',
+      'color': const Color(0xFF3F4E5E),
+      'hardness': '3300 HV',
+      'temp': '800°C',
+      'desc': 'Sert metaller, titanyum ve paslanmaz çelik için üstün ısı direnci.',
+    },
+    {
+      'id': 'altin',
+      'name': 'AlTiN (Alüminyum Titanyum Nitrür - Nano)',
+      'shortName': 'AlTiN',
+      'color': const Color(0xFF22262C),
+      'hardness': '3600 HV',
+      'temp': '900°C',
+      'desc': 'Kuru işleme, nikel bazlı süperalaşımlar ve ekstrem aşınma dayanımı.',
+    },
+    {
+      'id': 'tin',
+      'name': 'TiN (Titanyum Nitrür - Altın Sarısı)',
+      'shortName': 'TiN',
+      'color': const Color(0xFFFFC107),
+      'hardness': '2300 HV',
+      'temp': '550°C',
+      'desc': 'Sürtünmeyi azaltır, talaş yapışmasını önler, genel çelikler.',
+    },
+    {
+      'id': 'black_oxide',
+      'name': 'Siyah Oksit (Buhar Meneviş - Black Oxide)',
+      'shortName': 'Siyah Oksit',
+      'color': const Color(0xFF1E242B),
+      'hardness': 'Ana Malzeme',
+      'temp': '400°C',
+      'desc': 'Soğutma sıvısı tutuşu mükemmel, gerilim giderme, kaynaklanmayı önler.',
+    },
+    {
+      'id': 'bright',
+      'name': 'Parlak / Kaplamasız (Bright Finish)',
+      'shortName': 'Parlak Çelik',
+      'color': const Color(0xFFB0BEC5),
+      'hardness': 'Ana Malzeme',
+      'temp': 'Standart',
+      'desc': 'Alüminyum ve yumuşak metallerde talaş sarılmasını engeller.',
+    },
+  ];
+
+  String selectedMaterialId = 'm42';
+  String selectedCoatingId = 'tialn';
+
+  // Sap (Shank) Parametreleri (1/4"-28 Vidalı Sap - NAS 965 Standardı)
   bool hasThreadedShank = true; // Varsayılan olarak vidalı sap açık
-  String hexPosition = 'behind'; // 'behind' = vidalı dişin arkasında (en arka uçta), 'front' = gövde ile vida arası (NAS 965)
   double threadLength = 8.70; // Dişli Bölüm Boyu (mm) - Standart 1/4"-28 = 8.70 mm
   double threadDiameter = 6.35; // Diş Çapı (mm) - 1/4" = 6.35 mm
   double hexLength = 7.94; // Kalın Somun Kafa Boyu (mm) - 5/16" = 7.94 mm
@@ -203,7 +382,23 @@ class _DrillTechnicalDrawingScreenState
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _autoRotateController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..addListener(() {
+        if (isAutoRotating && is3DMode) {
+          setState(() {
+            rotY += 0.02;
+          });
+        }
+      });
+  }
+
+  @override
   void dispose() {
+    _autoRotateController.dispose();
     _diamMmController.dispose();
     _totalLenMmController.dispose();
     _fluteLenMmController.dispose();
@@ -222,6 +417,96 @@ class _DrillTechnicalDrawingScreenState
     _hexWidthController.dispose();
     _transformController.dispose();
     super.dispose();
+  }
+
+  void _applyTipAngle(Map<String, dynamic> item) {
+    setState(() {
+      selectedTipId = item['id'] as String;
+      pointAngle = (item['angle'] as num).toDouble();
+      toolTipType = item['toolTipType'] as String;
+    });
+  }
+
+  void _reset3DView() {
+    setState(() {
+      rotX = 0.40;
+      rotY = -0.70;
+      rotZ = 0.0;
+      zoom3D = 1.0;
+    });
+  }
+
+  void _set3DCameraPreset(String preset) {
+    setState(() {
+      switch (preset) {
+        case 'iso':
+          rotX = 0.40;
+          rotY = -0.70;
+          rotZ = 0.0;
+          break;
+        case 'front':
+          rotX = 0.0;
+          rotY = 0.0;
+          rotZ = 0.0;
+          break;
+        case 'top':
+          rotX = math.pi / 2;
+          rotY = 0.0;
+          rotZ = 0.0;
+          break;
+        case 'tip':
+          rotX = 0.0;
+          rotY = -math.pi / 2;
+          rotZ = 0.0;
+          break;
+        case 'shank':
+          rotX = 0.0;
+          rotY = math.pi / 2;
+          rotZ = 0.0;
+          break;
+      }
+    });
+  }
+
+  void _toggleAutoRotate() {
+    setState(() {
+      isAutoRotating = !isAutoRotating;
+      if (isAutoRotating) {
+        _autoRotateController.repeat();
+      } else {
+        _autoRotateController.stop();
+      }
+    });
+  }
+
+  void _zoomIn() {
+    setState(() {
+      if (is3DMode) {
+        zoom3D = (zoom3D * 1.2).clamp(0.4, 4.0);
+      } else {
+        _transformController.value = _transformController.value.scaled(1.2, 1.2, 1.0);
+      }
+    });
+  }
+
+  void _zoomOut() {
+    setState(() {
+      if (is3DMode) {
+        zoom3D = (zoom3D * 0.833).clamp(0.4, 4.0);
+      } else {
+        _transformController.value = _transformController.value.scaled(0.833, 0.833, 1.0);
+      }
+    });
+  }
+
+  void _resetZoom() {
+    setState(() {
+      if (is3DMode) {
+        _reset3DView();
+      } else {
+        _transformController.value = Matrix4.identity();
+      }
+    });
   }
 
   void _applyPreset(Map<String, dynamic> item) {
@@ -290,24 +575,6 @@ class _DrillTechnicalDrawingScreenState
       threadDiameter = double.tryParse(_threadDiamController.text) ?? threadDiameter;
       hexLength = double.tryParse(_hexLenController.text) ?? hexLength;
       hexWidth = double.tryParse(_hexWidthController.text) ?? hexWidth;
-    });
-  }
-
-  void _zoomIn() {
-    setState(() {
-      _transformController.value = _transformController.value.scaled(1.2, 1.2, 1.0);
-    });
-  }
-
-  void _zoomOut() {
-    setState(() {
-      _transformController.value = _transformController.value.scaled(0.833, 0.833, 1.0);
-    });
-  }
-
-  void _resetZoom() {
-    setState(() {
-      _transformController.value = Matrix4.identity();
     });
   }
 
@@ -457,10 +724,11 @@ class _DrillTechnicalDrawingScreenState
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Text('Standart: ${hasThreadedShank ? "NAS 907 Tip J (1/4\"-28)" : "DIN 6527 / NAS 907"}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                            pw.Text('Malzeme: M2 / M42 HSS-Co %8 / Mikro Taneli Karbür', style: const pw.TextStyle(fontSize: 7.5)),
-                            pw.Text('Tolerans: d1: h9, d2: h6 | Salgi: < 0.005 mm', style: const pw.TextStyle(fontSize: 7.5)),
-                            pw.Text('Kaplama: TiAlN / Siyah Oksit Buhar Menevis', style: const pw.TextStyle(fontSize: 7.5)),
+                            pw.Text('Standart: ${hasThreadedShank ? "NAS 965 Tip B/D (1/4\"-28)" : "DIN 6527 / ISO 13399"}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('Hammadde: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']}', style: const pw.TextStyle(fontSize: 7.5)),
+                            pw.Text('Sertlik: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: const pw.TextStyle(fontSize: 7.5)),
+                            pw.Text('Kaplama: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name']}', style: const pw.TextStyle(fontSize: 7.5)),
+                            pw.Text('Uç Geometrisi: ${standardTipAngles.firstWhere((t) => t['id'] == selectedTipId)['shortLabel']} ($pointAngle°)', style: const pw.TextStyle(fontSize: 7.5)),
                           ],
                         ),
                       ),
@@ -588,77 +856,40 @@ class _DrillTechnicalDrawingScreenState
       final double hxLenPx = (hexLength * scaleX).clamp(24.0, 70.0);
       final double hxHPx = (hexWidth * 6.5).clamp(24.0, 58.0);
       final double halfHxH = hxHPx / 2;
+      final double threadEndX = shankEndX;
+      final double threadStartX = threadEndX - thLenPx;
+      final double hexEndX = threadStartX;
+      final double hexStartX = hexEndX - hxLenPx;
+      final double bodyEndX = hexStartX - 6.0;
 
-      if (hexPosition == 'behind') {
-        // 1. Vidalı Dişin Arkasında 6-Gen Kafa (Uçta Kafa)
-        final double hexEndX = shankEndX;
-        final double hexStartX = hexEndX - hxLenPx;
-        final double threadEndX = hexStartX;
-        final double threadStartX = threadEndX - thLenPx;
-        final double bodyEndX = threadStartX;
+      // Gövde
+      canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(bodyEndX, originY - halfD2);
+      canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(bodyEndX, originY + halfD2);
+      // Konik omuz
+      canvas.moveTo(bodyEndX, originY - halfD2); canvas.lineTo(hexStartX, originY - halfHxH);
+      canvas.moveTo(bodyEndX, originY + halfD2); canvas.lineTo(hexStartX, originY + halfHxH);
+      canvas.strokePath();
 
-        // Gövde
-        canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(bodyEndX, originY - halfD2);
-        canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(bodyEndX, originY + halfD2);
-        // Gövdeden dişe basamak
-        canvas.moveTo(bodyEndX, originY - halfD2); canvas.lineTo(threadStartX, originY - halfThH);
-        canvas.moveTo(bodyEndX, originY + halfD2); canvas.lineTo(threadStartX, originY + halfThH);
-        // Diş dış hatları
-        canvas.moveTo(threadStartX, originY - halfThH); canvas.lineTo(threadEndX, originY - halfThH);
-        canvas.moveTo(threadStartX, originY + halfThH); canvas.lineTo(threadEndX, originY + halfThH);
-        // Dişten kafaya basamak
-        canvas.moveTo(threadEndX, originY - halfThH); canvas.lineTo(hexStartX, originY - halfHxH);
-        canvas.moveTo(threadEndX, originY + halfThH); canvas.lineTo(hexStartX, originY + halfHxH);
+      // 6-Gen Kafa
+      _drawPdfHexHead(canvas, hexStartX, hexEndX, originY, halfHxH);
+
+      // Diş dış hatları & uç pahı
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.5);
+      canvas.moveTo(threadStartX, originY - halfThH); canvas.lineTo(threadEndX - 3, originY - halfThH);
+      canvas.moveTo(threadStartX, originY + halfThH); canvas.lineTo(threadEndX - 3, originY + halfThH);
+      canvas.lineTo(threadEndX, originY + halfThH - 3);
+      canvas.lineTo(threadEndX, originY - halfThH + 3);
+      canvas.lineTo(threadEndX - 3, originY - halfThH);
+      canvas.strokePath();
+
+      // Diş Çizgileri
+      canvas.setColor(PdfColors.amber800);
+      canvas.setLineWidth(1.2);
+      for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 3.5) {
+        canvas.moveTo(tx, originY - halfThH);
+        canvas.lineTo(tx + 2, originY + halfThH);
         canvas.strokePath();
-
-        // Diş Çizgileri
-        canvas.setColor(PdfColors.amber800);
-        canvas.setLineWidth(1.2);
-        for (double tx = threadStartX + 3; tx < threadEndX - 2; tx += 3.5) {
-          canvas.moveTo(tx, originY - halfThH);
-          canvas.lineTo(tx + 2, originY + halfThH);
-          canvas.strokePath();
-        }
-
-        // 6-Gen Kafa
-        _drawPdfHexHead(canvas, hexStartX, hexEndX, originY, halfHxH);
-      } else {
-        // 2. Gövde ile Diş Arasında 6-Gen Kafa (Standart NAS 965)
-        final double threadEndX = shankEndX;
-        final double threadStartX = threadEndX - thLenPx;
-        final double hexEndX = threadStartX;
-        final double hexStartX = hexEndX - hxLenPx;
-        final double bodyEndX = hexStartX - 6.0;
-
-        // Gövde
-        canvas.moveTo(reachEndX + 2, originY - halfD2); canvas.lineTo(bodyEndX, originY - halfD2);
-        canvas.moveTo(reachEndX + 2, originY + halfD2); canvas.lineTo(bodyEndX, originY + halfD2);
-        // Konik omuz
-        canvas.moveTo(bodyEndX, originY - halfD2); canvas.lineTo(hexStartX, originY - halfHxH);
-        canvas.moveTo(bodyEndX, originY + halfD2); canvas.lineTo(hexStartX, originY + halfHxH);
-        canvas.strokePath();
-
-        // 6-Gen Kafa
-        _drawPdfHexHead(canvas, hexStartX, hexEndX, originY, halfHxH);
-
-        // Diş dış hatları & uç pahı
-        canvas.setColor(PdfColors.black);
-        canvas.setLineWidth(1.5);
-        canvas.moveTo(threadStartX, originY - halfThH); canvas.lineTo(threadEndX - 3, originY - halfThH);
-        canvas.moveTo(threadStartX, originY + halfThH); canvas.lineTo(threadEndX - 3, originY + halfThH);
-        canvas.lineTo(threadEndX, originY + halfThH - 3);
-        canvas.lineTo(threadEndX, originY - halfThH + 3);
-        canvas.lineTo(threadEndX - 3, originY - halfThH);
-        canvas.strokePath();
-
-        // Diş Çizgileri
-        canvas.setColor(PdfColors.amber800);
-        canvas.setLineWidth(1.2);
-        for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 3.5) {
-          canvas.moveTo(tx, originY - halfThH);
-          canvas.lineTo(tx + 2, originY + halfThH);
-          canvas.strokePath();
-        }
       }
     }
 
@@ -945,45 +1176,72 @@ class _DrillTechnicalDrawingScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Kart Başlığı ve Model Etiketi
+                    // Kart Başlığı, Tip Etiketi ve 2D/3D Görünüm Seçici
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.architecture, color: Color(0xFF00E5FF), size: 20),
+                            Icon(is3DMode ? Icons.view_in_ar : Icons.architecture, color: const Color(0xFF00E5FF), size: 20),
                             const SizedBox(width: 8),
-                            const Text(
-                              'TEKNİK KATALOG ÇİZİMİ',
-                              style: TextStyle(
+                            Text(
+                              is3DMode ? '3D İNTERAKTİF CAD MODELİ' : 'TEKNİK KATALOG ÇİZİMİ (2D)',
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                                 letterSpacing: 0.8,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00E5FF).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
-                              ),
-                              child: const Text('ISO 13399', style: TextStyle(fontSize: 10, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                            ),
                           ],
                         ),
+                        // 2D / 3D Görünüm Modu Değiştirici
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFB300).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.3)),
+                            color: const Color(0xFF0F141C),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF232E3E)),
                           ),
-                          child: Text(
-                            hasThreadedShank ? '1/4"-28 Vidalı Sap' : 'Düz Silindirik Sap',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFB300)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InkWell(
+                                onTap: () => setState(() => is3DMode = false),
+                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: !is3DMode ? const Color(0xFF00E5FF).withOpacity(0.2) : Colors.transparent,
+                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.architecture, size: 14, color: !is3DMode ? const Color(0xFF00E5FF) : Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Text('2D ISO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: !is3DMode ? const Color(0xFF00E5FF) : Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => setState(() => is3DMode = true),
+                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: is3DMode ? const Color(0xFFFFB300).withOpacity(0.25) : Colors.transparent,
+                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.view_in_ar, size: 14, color: is3DMode ? const Color(0xFFFFB300) : Colors.grey),
+                                      const SizedBox(width: 4),
+                                      Text('3D CAD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: is3DMode ? const Color(0xFFFFB300) : Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -994,89 +1252,164 @@ class _DrillTechnicalDrawingScreenState
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: [
-                          // 1. Tema Değiştirici: Katalog Beyazı / Karanlık CAD
-                          ActionChip(
-                            avatar: Icon(
-                              isCatalogWhiteMode ? Icons.light_mode : Icons.dark_mode,
-                              size: 16,
-                              color: isCatalogWhiteMode ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
-                            ),
-                            label: Text(
-                              isCatalogWhiteMode ? 'Beyaz Katalog' : 'Karanlık CAD',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            backgroundColor: isCatalogWhiteMode ? Colors.white.withOpacity(0.12) : const Color(0xFF0F141C),
-                            side: BorderSide(color: isCatalogWhiteMode ? const Color(0xFFFFB300) : const Color(0xFF232E3E)),
-                            onPressed: () => setState(() => isCatalogWhiteMode = !isCatalogWhiteMode),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // 2. Takım Uç Tipi: Düz Freze / 135° Matkap
-                          ChoiceChip(
-                            label: const Text('Düz Freze (Görsel)', style: TextStyle(fontSize: 11)),
-                            selected: toolTipType == 'endmill',
-                            selectedColor: const Color(0xFF00E5FF).withOpacity(0.25),
-                            onSelected: (val) => setState(() => toolTipType = 'endmill'),
-                          ),
-                          const SizedBox(width: 6),
-                          ChoiceChip(
-                            label: const Text('135° Matkap', style: TextStyle(fontSize: 11)),
-                            selected: toolTipType == 'drill135',
-                            selectedColor: const Color(0xFF00E5FF).withOpacity(0.25),
-                            onSelected: (val) => setState(() => toolTipType = 'drill135'),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // 3. Ölçü Gösterim Modu: ISO Sembol / Ölçülü / Birlikte
-                          ChoiceChip(
-                            label: const Text('d1, l1... (ISO)', style: TextStyle(fontSize: 11)),
-                            selected: dimensionDisplayMode == 'symbols',
-                            selectedColor: const Color(0xFFFFB300).withOpacity(0.25),
-                            onSelected: (val) => setState(() => dimensionDisplayMode = 'symbols'),
-                          ),
-                          const SizedBox(width: 6),
-                          ChoiceChip(
-                            label: const Text('Birlikte', style: TextStyle(fontSize: 11)),
-                            selected: dimensionDisplayMode == 'both',
-                            selectedColor: const Color(0xFFFFB300).withOpacity(0.25),
-                            onSelected: (val) => setState(() => dimensionDisplayMode = 'both'),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // 4. Zoom Butonları
-                          IconButton(
-                            icon: const Icon(Icons.zoom_in, size: 20),
-                            tooltip: 'Yakınlaştır',
-                            onPressed: _zoomIn,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.zoom_out, size: 20),
-                            tooltip: 'Uzaklaştır',
-                            onPressed: _zoomOut,
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.fit_screen, size: 20),
-                            tooltip: 'Görünümü Sıfırla',
-                            onPressed: _resetZoom,
-                          ),
-                        ],
+                        children: is3DMode
+                            ? [
+                                // 3D Toolbar Kontrolleri
+                                ActionChip(
+                                  avatar: const Icon(Icons.crop_rotate, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('İzometrik', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => _set3DCameraPreset('iso'),
+                                ),
+                                const SizedBox(width: 6),
+                                ActionChip(
+                                  avatar: const Icon(Icons.border_right, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('Ön / Yan', style: TextStyle(fontSize: 11)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => _set3DCameraPreset('front'),
+                                ),
+                                const SizedBox(width: 6),
+                                ActionChip(
+                                  avatar: const Icon(Icons.border_top, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('Üst Görünüm', style: TextStyle(fontSize: 11)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => _set3DCameraPreset('top'),
+                                ),
+                                const SizedBox(width: 6),
+                                ActionChip(
+                                  avatar: const Icon(Icons.adjust, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('Uç / Ağız', style: TextStyle(fontSize: 11)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => _set3DCameraPreset('tip'),
+                                ),
+                                const SizedBox(width: 6),
+                                ActionChip(
+                                  avatar: const Icon(Icons.hexagon, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('Vidalı Sap', style: TextStyle(fontSize: 11)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => _set3DCameraPreset('shank'),
+                                ),
+                                const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: Icon(
+                                    isAutoRotating ? Icons.stop_circle : Icons.play_circle,
+                                    size: 16,
+                                    color: isAutoRotating ? const Color(0xFFFF5252) : const Color(0xFFFFB300),
+                                  ),
+                                  label: Text(
+                                    isAutoRotating ? 'Durdur' : '360° Döndür',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                  selected: isAutoRotating,
+                                  selectedColor: const Color(0xFFFFB300).withOpacity(0.2),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onSelected: (_) => _toggleAutoRotate(),
+                                ),
+                                const SizedBox(width: 8),
+                                ActionChip(
+                                  avatar: Icon(
+                                    is3DWireframe ? Icons.grid_3x3 : Icons.wb_shade,
+                                    size: 16,
+                                    color: const Color(0xFF00E5FF),
+                                  ),
+                                  label: Text(
+                                    is3DWireframe ? 'Tel Kafes' : 'Katı Metalik',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onPressed: () => setState(() => is3DWireframe = !is3DWireframe),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_in, size: 20),
+                                  tooltip: 'Yakınlaştır',
+                                  onPressed: _zoomIn,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_out, size: 20),
+                                  tooltip: 'Uzaklaştır',
+                                  onPressed: _zoomOut,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 20),
+                                  tooltip: 'Sıfırla',
+                                  onPressed: _resetZoom,
+                                ),
+                              ]
+                            : [
+                                // 2D Toolbar Kontrolleri
+                                ActionChip(
+                                  avatar: Icon(
+                                    isCatalogWhiteMode ? Icons.light_mode : Icons.dark_mode,
+                                    size: 16,
+                                    color: isCatalogWhiteMode ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
+                                  ),
+                                  label: Text(
+                                    isCatalogWhiteMode ? 'Beyaz Katalog' : 'Karanlık CAD',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                  backgroundColor: isCatalogWhiteMode ? Colors.white.withOpacity(0.12) : const Color(0xFF0F141C),
+                                  side: BorderSide(color: isCatalogWhiteMode ? const Color(0xFFFFB300) : const Color(0xFF232E3E)),
+                                  onPressed: () => setState(() => isCatalogWhiteMode = !isCatalogWhiteMode),
+                                ),
+                                const SizedBox(width: 8),
+                                ChoiceChip(
+                                  label: const Text('d1, l1... (ISO)', style: TextStyle(fontSize: 11)),
+                                  selected: dimensionDisplayMode == 'symbols',
+                                  selectedColor: const Color(0xFFFFB300).withOpacity(0.25),
+                                  onSelected: (val) => setState(() => dimensionDisplayMode = 'symbols'),
+                                ),
+                                const SizedBox(width: 6),
+                                ChoiceChip(
+                                  label: const Text('Birlikte', style: TextStyle(fontSize: 11)),
+                                  selected: dimensionDisplayMode == 'both',
+                                  selectedColor: const Color(0xFFFFB300).withOpacity(0.25),
+                                  onSelected: (val) => setState(() => dimensionDisplayMode = 'both'),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_in, size: 20),
+                                  tooltip: 'Yakınlaştır',
+                                  onPressed: _zoomIn,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_out, size: 20),
+                                  tooltip: 'Uzaklaştır',
+                                  onPressed: _zoomOut,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.fit_screen, size: 20),
+                                  tooltip: 'Görünümü Sıfırla',
+                                  onPressed: _resetZoom,
+                                ),
+                              ],
                       ),
                     ),
                     const SizedBox(height: 12),
 
-                    // Canvas Alanı (Interactive Viewer ile Pan & Pinch-Zoom)
+                    // Canvas Alanı (2D InteractiveViewer veya 3D GestureDetector)
                     Container(
                       height: 330,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: isCatalogWhiteMode ? Colors.white : const Color(0xFF080D14),
+                        color: is3DMode
+                            ? const Color(0xFF0A0F17)
+                            : (isCatalogWhiteMode ? Colors.white : const Color(0xFF080D14)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isCatalogWhiteMode ? const Color(0xFFD0D7DE) : const Color(0xFF1D2838),
+                          color: (!is3DMode && isCatalogWhiteMode)
+                              ? const Color(0xFFD0D7DE)
+                              : const Color(0xFF1D2838),
                           width: 1.5,
                         ),
-                        boxShadow: isCatalogWhiteMode
+                        boxShadow: (!is3DMode && isCatalogWhiteMode)
                             ? [
                                 BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 4)),
                               ]
@@ -1084,32 +1417,111 @@ class _DrillTechnicalDrawingScreenState
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: InteractiveViewer(
-                          transformationController: _transformController,
-                          minScale: 0.5,
-                          maxScale: 4.0,
-                          child: CustomPaint(
-                            size: Size.infinite,
-                            painter: IndustrialCatalogDrillPainter(
-                              isCatalogWhiteMode: isCatalogWhiteMode,
-                              toolTipType: toolTipType,
-                              dimensionDisplayMode: dimensionDisplayMode,
-                              hasThreadedShank: hasThreadedShank,
-                              hexPosition: hexPosition,
-                              drillDiameter: drillDiameter,
-                              totalLength: totalLength,
-                              fluteLength: fluteLength,
-                              reachLength: reachLength,
-                              neckDiameter: neckDiameter,
-                              shankDiameter: shankDiameter,
-                              pointAngle: pointAngle,
-                              threadLength: threadLength,
-                              hexLength: hexLength,
-                              threadDiameter: threadDiameter,
-                              hexWidth: hexWidth,
-                            ),
-                          ),
-                        ),
+                        child: is3DMode
+                            ? GestureDetector(
+                                onPanUpdate: (details) {
+                                  if (isAutoRotating) {
+                                    _toggleAutoRotate();
+                                  }
+                                  setState(() {
+                                    rotY += details.delta.dx * 0.012;
+                                    rotX = (rotX - details.delta.dy * 0.012).clamp(-math.pi * 0.48, math.pi * 0.48);
+                                  });
+                                },
+                                onDoubleTap: _reset3DView,
+                                child: Stack(
+                                  children: [
+                                    CustomPaint(
+                                      size: Size.infinite,
+                                      painter: Tool3DModelPainter(
+                                        rotX: rotX,
+                                        rotY: rotY,
+                                        rotZ: rotZ,
+                                        zoom: zoom3D,
+                                        isWireframe: is3DWireframe,
+                                        toolTipType: toolTipType,
+                                        pointAngle: pointAngle,
+                                        drillDiameter: drillDiameter,
+                                        totalLength: totalLength,
+                                        fluteLength: fluteLength,
+                                        reachLength: reachLength,
+                                        neckDiameter: neckDiameter,
+                                        shankDiameter: shankDiameter,
+                                        hasThreadedShank: hasThreadedShank,
+                                        threadLength: threadLength,
+                                        threadDiameter: threadDiameter,
+                                        hexLength: hexLength,
+                                        hexWidth: hexWidth,
+                                        coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 10,
+                                      left: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.65),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        child: Text(
+                                          'Açı: X:${(rotX * 180 / math.pi).toStringAsFixed(0)}°  Y:${(rotY * 180 / math.pi).toStringAsFixed(0)}°  |  Zoom: ${(zoom3D * 100).toStringAsFixed(0)}%',
+                                          style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 10,
+                                      left: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.65),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.touch_app, size: 12, color: Color(0xFF00E5FF)),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Parmağınızla / fareyle 360° serbestçe döndürün',
+                                              style: TextStyle(fontSize: 10, color: Colors.white70),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : InteractiveViewer(
+                                transformationController: _transformController,
+                                minScale: 0.5,
+                                maxScale: 4.0,
+                                child: CustomPaint(
+                                  size: Size.infinite,
+                                  painter: IndustrialCatalogDrillPainter(
+                                    isCatalogWhiteMode: isCatalogWhiteMode,
+                                    toolTipType: toolTipType,
+                                    dimensionDisplayMode: dimensionDisplayMode,
+                                    hasThreadedShank: hasThreadedShank,
+                                    drillDiameter: drillDiameter,
+                                    totalLength: totalLength,
+                                    fluteLength: fluteLength,
+                                    reachLength: reachLength,
+                                    neckDiameter: neckDiameter,
+                                    shankDiameter: shankDiameter,
+                                    pointAngle: pointAngle,
+                                    threadLength: threadLength,
+                                    hexLength: hexLength,
+                                    threadDiameter: threadDiameter,
+                                    hexWidth: hexWidth,
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1138,7 +1550,287 @@ class _DrillTechnicalDrawingScreenState
             ),
             const SizedBox(height: 16),
 
-            // 1. KISIM: VİDALI SAP (AÇMA / KAPAMA SİSTEMLİ VE KISALTILMIŞ)
+            // KART 1: TAKIM GEOMETRİSİ VE UÇ AÇISI LİSTESİ (DÜZ FREZE & MATKAP AÇILARI)
+            Card(
+              color: const Color(0xFF171E28),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF232E3E)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.architecture, color: Color(0xFF00E5FF), size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Takım Geometrisi ve Uç Açısı Listesi:',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00E5FF).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            '${pointAngle.toStringAsFixed(0)}° Açı',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: standardTipAngles.map((tip) {
+                        final isSelected = selectedTipId == tip['id'];
+                        return ChoiceChip(
+                          label: Text(tip['label']),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF00E5FF).withOpacity(0.25),
+                          backgroundColor: const Color(0xFF0F141C),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11.5,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF232E3E),
+                          ),
+                          onSelected: (selected) {
+                            if (selected) _applyTipAngle(tip);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F141C),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF232E3E)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline, size: 16, color: Color(0xFF00E5FF)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              standardTipAngles.firstWhere((t) => t['id'] == selectedTipId)['desc'],
+                              style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // KART 2: HAMMADDE, SERTLİK VE KAPLAMA TÜRLERİ
+            Card(
+              color: const Color(0xFF171E28),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF232E3E)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.shield, color: Color(0xFFFFB300), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Matkap Hammadde, Sertlik ve Kaplama Türleri:',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Hammadde Seçimi
+                    const Text('Kesici Takım Hammaddesi:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: toolMaterials.map((mat) {
+                        final isSelected = selectedMaterialId == mat['id'];
+                        return ChoiceChip(
+                          label: Text(mat['name'].toString().split('(').first.trim()),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFFFFB300).withOpacity(0.25),
+                          backgroundColor: const Color(0xFF0F141C),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFFFFB300) : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11.5,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFFFFB300) : const Color(0xFF232E3E),
+                          ),
+                          onSelected: (selected) {
+                            if (selected) setState(() => selectedMaterialId = mat['id']);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Sertlik Değerleri Kutucukları (Rockwell HRC, Vickers HV, Maks Sıcaklık)
+                    Builder(builder: (context) {
+                      final currentMat = toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F141C),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF232E3E)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Rockwell Sertlik', style: TextStyle(fontSize: 9.5, color: Colors.grey)),
+                                      const SizedBox(height: 2),
+                                      Text(currentMat['hardness'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFFB300))),
+                                      Text(currentMat['hardnessHra'] ?? '', style: const TextStyle(fontSize: 9, color: Colors.white54)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F141C),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF232E3E)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Vickers Sertlik', style: TextStyle(fontSize: 9.5, color: Colors.grey)),
+                                      const SizedBox(height: 2),
+                                      Text(currentMat['hardnessHv'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
+                                      const Text('HV 0.5 Yük', style: TextStyle(fontSize: 9, color: Colors.white54)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F141C),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF232E3E)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Termal Direnç', style: TextStyle(fontSize: 9.5, color: Colors.grey)),
+                                      const SizedBox(height: 2),
+                                      Text(currentMat['temp'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFF5252))),
+                                      const Text('Kızıl Sertlik', style: TextStyle(fontSize: 9, color: Colors.white54)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F141C),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF232E3E)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.flight_takeoff, size: 14, color: Color(0xFF00E5FF)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Önerilen Havacılık Alaşımları: ${currentMat['app']}',
+                                    style: const TextStyle(fontSize: 10.5, color: Colors.white70),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    const SizedBox(height: 12),
+
+                    // Kaplama Türü Seçimi
+                    const Text('Yüzey Kaplama Türü (PVD):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: toolCoatings.map((coating) {
+                        final isSelected = selectedCoatingId == coating['id'];
+                        final Color cColor = coating['color'] as Color;
+                        return ChoiceChip(
+                          avatar: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: cColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white54, width: 0.8),
+                            ),
+                          ),
+                          label: Text(coating['shortName']),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF00E5FF).withOpacity(0.25),
+                          backgroundColor: const Color(0xFF0F141C),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFF00E5FF) : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF232E3E),
+                          ),
+                          onSelected: (selected) {
+                            if (selected) setState(() => selectedCoatingId = coating['id']);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 1. KISIM: VİDALI SAP (STANDART NAS 965 - AÇMA / KAPAMA SİSTEMLİ)
             Card(
               color: const Color(0xFF171E28),
               shape: RoundedRectangleBorder(
@@ -1235,27 +1927,26 @@ class _DrillTechnicalDrawingScreenState
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Text('6-Gen Kafa Konumu: ', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          const SizedBox(width: 8),
-                          ChoiceChip(
-                            label: const Text('⬡ Vida Arkasında (Uçta)', style: TextStyle(fontSize: 11)),
-                            selected: hexPosition == 'behind',
-                            selectedColor: const Color(0xFFFFB300),
-                            backgroundColor: const Color(0xFF0F141C),
-                            onSelected: (val) => setState(() => hexPosition = 'behind'),
-                          ),
-                          const SizedBox(width: 8),
-                          ChoiceChip(
-                            label: const Text('⬡ Gövde-Vida Arası (NAS 965)', style: TextStyle(fontSize: 11)),
-                            selected: hexPosition == 'front',
-                            selectedColor: const Color(0xFFFFB300),
-                            backgroundColor: const Color(0xFF0F141C),
-                            onSelected: (val) => setState(() => hexPosition = 'front'),
-                          ),
-                        ],
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F141C),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF232E3E)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, size: 14, color: Color(0xFFFFB300)),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Standart NAS 965: Gövde ➔ Konik Omuz ➔ 6-Gen Kafa ➔ 1/4"-28 Vidalı Uç',
+                                style: TextStyle(fontSize: 11, color: Colors.white70),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -1506,7 +2197,6 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
   final String toolTipType; // 'drill135', 'endmill', 'drill118'
   final String dimensionDisplayMode; // 'both', 'symbols', 'values'
   final bool hasThreadedShank;
-  final String hexPosition; // 'behind' = vida arkasında, 'front' = gövde ile vida arası
   final double drillDiameter;
   final double totalLength;
   final double fluteLength;
@@ -1524,7 +2214,6 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
     required this.toolTipType,
     required this.dimensionDisplayMode,
     required this.hasThreadedShank,
-    this.hexPosition = 'behind',
     required this.drillDiameter,
     required this.totalLength,
     required this.fluteLength,
@@ -1704,78 +2393,42 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
       final double hxHPx = (hexWidth * 7.0).clamp(24.0, 60.0);
       final double halfHxH = hxHPx / 2;
 
-      if (hexPosition == 'behind') {
-        // 1. Vidalı Dişin Arkasında 6-Gen Kafa (Uçta Kafa)
-        final double hexEndX = shankEndX;
-        final double hexStartX = hexEndX - hxLenPx;
-        final double threadEndX = hexStartX;
-        final double threadStartX = threadEndX - thLenPx;
-        final double bodyEndX = threadStartX;
+      // Standart NAS 965: Gövde -> Konik Omuz -> 6-Gen Somun Kafa -> 1/4"-28 Vida (Uçta)
+      final double threadEndX = shankEndX;
+      final double threadStartX = threadEndX - thLenPx;
+      final double hexEndX = threadStartX;
+      final double hexStartX = hexEndX - hxLenPx;
+      final double bodyEndX = hexStartX - 6.0;
 
-        // Silindirik Gövde Hatları
-        canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(bodyEndX, centerY - halfD2), contourPaint);
-        canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(bodyEndX, centerY + halfD2), contourPaint);
+      // Silindirik Gövde Hatları
+      canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(bodyEndX, centerY - halfD2), contourPaint);
+      canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(bodyEndX, centerY + halfD2), contourPaint);
 
-        // Gövdeden Dişe Basamak
-        canvas.drawLine(Offset(bodyEndX, centerY - halfD2), Offset(threadStartX, centerY - halfThH), contourPaint);
-        canvas.drawLine(Offset(bodyEndX, centerY + halfD2), Offset(threadStartX, centerY + halfThH), contourPaint);
+      // Gövdeden 6-Gen Kafaya Konik Omuz (Taper Transition)
+      canvas.drawLine(Offset(bodyEndX, centerY - halfD2), Offset(hexStartX, centerY - halfHxH), contourPaint);
+      canvas.drawLine(Offset(bodyEndX, centerY + halfD2), Offset(hexStartX, centerY + halfHxH), contourPaint);
 
-        // Vidalı Kısım Dış Çizgileri
-        canvas.drawLine(Offset(threadStartX, centerY - halfThH), Offset(threadEndX, centerY - halfThH), contourPaint);
-        canvas.drawLine(Offset(threadStartX, centerY + halfThH), Offset(threadEndX, centerY + halfThH), contourPaint);
+      // 6-Gen Somun Kafa
+      _drawHexHead(canvas, hexStartX, hexEndX, centerY, halfHxH, contourPaint, isCatalogWhiteMode);
 
-        // Vida Diş Çizgileri (45° açılı)
-        final threadLinePaint = Paint()
-          ..color = isCatalogWhiteMode ? const Color(0xFFD97706) : const Color(0xFFFFB300)
-          ..strokeWidth = 1.6;
-        for (double tx = threadStartX + 3; tx < threadEndX - 2; tx += 4.0) {
-          canvas.drawLine(Offset(tx, centerY - halfThH), Offset(tx + 2.5, centerY + halfThH), threadLinePaint);
-        }
+      // Vidalı Kısım Dış Çizgileri
+      canvas.drawLine(Offset(threadStartX, centerY - halfThH), Offset(threadEndX - 3, centerY - halfThH), contourPaint);
+      canvas.drawLine(Offset(threadStartX, centerY + halfThH), Offset(threadEndX - 3, centerY + halfThH), contourPaint);
 
-        // Dişten 6-Gen Kafaya Geçiş
-        canvas.drawLine(Offset(threadEndX, centerY - halfThH), Offset(hexStartX, centerY - halfHxH), contourPaint);
-        canvas.drawLine(Offset(threadEndX, centerY + halfThH), Offset(hexStartX, centerY + halfHxH), contourPaint);
+      // Uç Pahı
+      final tipChamfer = Path()
+        ..moveTo(threadEndX - 3, centerY - halfThH)
+        ..lineTo(threadEndX, centerY - halfThH + 3)
+        ..lineTo(threadEndX, centerY + halfThH - 3)
+        ..lineTo(threadEndX - 3, centerY + halfThH);
+      canvas.drawPath(tipChamfer, contourPaint);
 
-        // 6-Gen Somun Kafa (3 Yüzeyli, Crease Çizgili, Pahlı)
-        _drawHexHead(canvas, hexStartX, hexEndX, centerY, halfHxH, contourPaint, isCatalogWhiteMode);
-      } else {
-        // 2. Gövde ile Diş Arasında 6-Gen Kafa (Standart NAS 965 - Fotoğraftaki gibi)
-        final double threadEndX = shankEndX;
-        final double threadStartX = threadEndX - thLenPx;
-        final double hexEndX = threadStartX;
-        final double hexStartX = hexEndX - hxLenPx;
-        final double bodyEndX = hexStartX - 6.0;
-
-        // Silindirik Gövde Hatları
-        canvas.drawLine(Offset(reachEndX + 3, centerY - halfD2), Offset(bodyEndX, centerY - halfD2), contourPaint);
-        canvas.drawLine(Offset(reachEndX + 3, centerY + halfD2), Offset(bodyEndX, centerY + halfD2), contourPaint);
-
-        // Gövdeden 6-Gen Kafaya Konik Omuz (Taper Transition)
-        canvas.drawLine(Offset(bodyEndX, centerY - halfD2), Offset(hexStartX, centerY - halfHxH), contourPaint);
-        canvas.drawLine(Offset(bodyEndX, centerY + halfD2), Offset(hexStartX, centerY + halfHxH), contourPaint);
-
-        // 6-Gen Somun Kafa
-        _drawHexHead(canvas, hexStartX, hexEndX, centerY, halfHxH, contourPaint, isCatalogWhiteMode);
-
-        // Vidalı Kısım Dış Çizgileri
-        canvas.drawLine(Offset(threadStartX, centerY - halfThH), Offset(threadEndX - 3, centerY - halfThH), contourPaint);
-        canvas.drawLine(Offset(threadStartX, centerY + halfThH), Offset(threadEndX - 3, centerY + halfThH), contourPaint);
-
-        // Uç Pahı
-        final tipChamfer = Path()
-          ..moveTo(threadEndX - 3, centerY - halfThH)
-          ..lineTo(threadEndX, centerY - halfThH + 3)
-          ..lineTo(threadEndX, centerY + halfThH - 3)
-          ..lineTo(threadEndX - 3, centerY + halfThH);
-        canvas.drawPath(tipChamfer, contourPaint);
-
-        // Vida Diş Çizgileri
-        final threadLinePaint = Paint()
-          ..color = isCatalogWhiteMode ? const Color(0xFFD97706) : const Color(0xFFFFB300)
-          ..strokeWidth = 1.6;
-        for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 4.0) {
-          canvas.drawLine(Offset(tx, centerY - halfThH), Offset(tx + 2.5, centerY + halfThH), threadLinePaint);
-        }
+      // Vida Diş Çizgileri
+      final threadLinePaint = Paint()
+        ..color = isCatalogWhiteMode ? const Color(0xFFD97706) : const Color(0xFFFFB300)
+        ..strokeWidth = 1.6;
+      for (double tx = threadStartX + 3; tx < threadEndX - 3; tx += 4.0) {
+        canvas.drawLine(Offset(tx, centerY - halfThH), Offset(tx + 2.5, centerY + halfThH), threadLinePaint);
       }
     }
 
@@ -2016,7 +2669,6 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
         oldDelegate.toolTipType != toolTipType ||
         oldDelegate.dimensionDisplayMode != dimensionDisplayMode ||
         oldDelegate.hasThreadedShank != hasThreadedShank ||
-        oldDelegate.hexPosition != hexPosition ||
         oldDelegate.drillDiameter != drillDiameter ||
         oldDelegate.totalLength != totalLength ||
         oldDelegate.fluteLength != fluteLength ||
@@ -2028,6 +2680,526 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
         oldDelegate.hexLength != hexLength ||
         oldDelegate.threadDiameter != threadDiameter ||
         oldDelegate.hexWidth != hexWidth;
+  }
+}
+
+// =============================================================================
+// 3D İNTERAKTİF TEKNİK CAD MODELİ ÇİZİCİSİ (Tool3DModelPainter)
+// =============================================================================
+
+class Tool3DModelPainter extends CustomPainter {
+  final double rotX;
+  final double rotY;
+  final double rotZ;
+  final double zoom;
+  final bool isWireframe;
+  final String toolTipType;
+  final double pointAngle;
+  final double drillDiameter;
+  final double totalLength;
+  final double fluteLength;
+  final double reachLength;
+  final double neckDiameter;
+  final double shankDiameter;
+  final bool hasThreadedShank;
+  final double threadLength;
+  final double threadDiameter;
+  final double hexLength;
+  final double hexWidth;
+  final Color coatingColor;
+
+  Tool3DModelPainter({
+    required this.rotX,
+    required this.rotY,
+    required this.rotZ,
+    required this.zoom,
+    required this.isWireframe,
+    required this.toolTipType,
+    required this.pointAngle,
+    required this.drillDiameter,
+    required this.totalLength,
+    required this.fluteLength,
+    required this.reachLength,
+    required this.neckDiameter,
+    required this.shankDiameter,
+    required this.hasThreadedShank,
+    required this.threadLength,
+    required this.threadDiameter,
+    required this.hexLength,
+    required this.hexWidth,
+    required this.coatingColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Teknik CAD Izgara & Arka Plan
+    final bgPaint = Paint()..color = const Color(0xFF090E17);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+
+    final gridPaintMinor = Paint()
+      ..color = const Color(0xFF131D2A)
+      ..strokeWidth = 0.6;
+    final gridPaintMajor = Paint()
+      ..color = const Color(0xFF1C2C3F)
+      ..strokeWidth = 1.0;
+
+    for (double x = 0; x < size.width; x += 15) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), (x % 60 == 0) ? gridPaintMajor : gridPaintMinor);
+    }
+    for (double y = 0; y < size.height; y += 15) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), (y % 60 == 0) ? gridPaintMajor : gridPaintMinor);
+    }
+
+    // 2. 3D Geometri Üretimi
+    final List<_Face3D> rawFaces = [];
+
+    // Boyut oranlamaları (3D modelin koordinat birimleri: mm)
+    final double r1 = drillDiameter / 2;
+    final double r2 = shankDiameter / 2;
+    final double r3 = neckDiameter / 2;
+    final double tipX = -totalLength / 2;
+    final double shankX = totalLength / 2;
+
+    // Matkap veya Düz Freze Ucu
+    final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    final double pointLen = isEndMill
+        ? 0.0
+        : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
+
+    const int radialSegments = 16;
+    const double angleStep = 2 * math.pi / radialSegments;
+
+    // A. Uç (Tip) Modeli
+    final double fluteStartX = tipX + pointLen;
+    if (isEndMill) {
+      // Düz Freze: Düz ön ayna yüzeyi (End-Mill Face)
+      final List<_Vec3> diskVertices = [];
+      for (int i = 0; i < radialSegments; i++) {
+        final double theta = i * angleStep;
+        diskVertices.add(_Vec3(fluteStartX, r1 * math.cos(theta), r1 * math.sin(theta)));
+      }
+      rawFaces.add(_Face3D(
+        vertices: diskVertices,
+        color: coatingColor.withOpacity(0.95),
+      ));
+      // Kesici ağız gash çizgileri
+      for (int i = 0; i < 4; i++) {
+        final double th = i * (math.pi / 2);
+        rawFaces.add(_Face3D(
+          vertices: [
+            _Vec3(fluteStartX - 0.2, 0, 0),
+            _Vec3(fluteStartX - 0.2, r1 * math.cos(th), r1 * math.sin(th)),
+          ],
+          color: Colors.white,
+          isEdgeOnly: true,
+        ));
+      }
+    } else {
+      // Matkap Ucu: Konik Uç ve Split Point Yüzeyleri
+      final _Vec3 apex = _Vec3(tipX, 0, 0);
+      for (int i = 0; i < radialSegments; i++) {
+        final double th1 = i * angleStep;
+        final double th2 = (i + 1) * angleStep;
+        final v1 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
+        final v2 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
+
+        // Split point bileme yüzeyi ayrımı
+        final bool isPrimaryRelief = (i >= 2 && i <= 5) || (i >= 10 && i <= 13);
+        final Color tipFacetCol = isPrimaryRelief
+            ? coatingColor.withOpacity(0.95)
+            : Color.lerp(coatingColor, Colors.white, 0.2)!.withOpacity(0.95);
+
+        rawFaces.add(_Face3D(
+          vertices: [apex, v1, v2],
+          color: tipFacetCol,
+        ));
+      }
+    }
+
+    // B. Helis Kanallı Gövde (Fluted Cutting Body)
+    final double fluteEndX = tipX + fluteLength;
+    const int fluteSlices = 14;
+    final double sliceStep = (fluteEndX - fluteStartX) / fluteSlices;
+
+    for (int s = 0; s < fluteSlices; s++) {
+      final double x0 = fluteStartX + s * sliceStep;
+      final double x1 = x0 + sliceStep;
+
+      final double twist0 = ((x0 - fluteStartX) / fluteLength) * 2.2 * math.pi;
+      final double twist1 = ((x1 - fluteStartX) / fluteLength) * 2.2 * math.pi;
+
+      for (int i = 0; i < radialSegments; i++) {
+        final double th0A = i * angleStep + twist0;
+        final double th0B = (i + 1) * angleStep + twist0;
+        final double th1A = i * angleStep + twist1;
+        final double th1B = (i + 1) * angleStep + twist1;
+
+        // Helis derinliği (İki talaş kanalı oyuntusu)
+        final double depthFactor0A = (math.sin(2 * (i * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
+        final double depthFactor0B = (math.sin(2 * ((i + 1) * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
+        final double depthFactor1A = (math.sin(2 * (i * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
+        final double depthFactor1B = (math.sin(2 * ((i + 1) * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
+
+        final v0A = _Vec3(x0, r1 * depthFactor0A * math.cos(th0A), r1 * depthFactor0A * math.sin(th0A));
+        final v0B = _Vec3(x0, r1 * depthFactor0B * math.cos(th0B), r1 * depthFactor0B * math.sin(th0B));
+        final v1B = _Vec3(x1, r1 * depthFactor1B * math.cos(th1B), r1 * depthFactor1B * math.sin(th1B));
+        final v1A = _Vec3(x1, r1 * depthFactor1A * math.cos(th1A), r1 * depthFactor1A * math.sin(th1A));
+
+        final bool isFluteGroove = (depthFactor0A < 0.9);
+        final Color quadColor = isFluteGroove
+            ? const Color(0xFF1E2833)
+            : coatingColor;
+
+        rawFaces.add(_Face3D(
+          vertices: [v0A, v0B, v1B, v1A],
+          color: quadColor,
+        ));
+      }
+    }
+
+    // C. Boyun (Neck - d3)
+    final double reachEndX = tipX + reachLength;
+    if (reachLength > fluteLength + 1.0) {
+      // Helisten boyuna geçiş koniği
+      final double transitionLen = math.min(3.0, (reachEndX - fluteEndX) * 0.3);
+      final double neckStartX = fluteEndX + transitionLen;
+      final double neckEndX = reachEndX - transitionLen;
+
+      // Koni 1
+      _addCylinderRing(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, const Color(0xFF334252));
+      // Boyun silindiri
+      _addCylinderRing(rawFaces, neckStartX, neckEndX, r3, r3, radialSegments, const Color(0xFF2C3947));
+      // Koni 2 (Boyundan Sapa geçiş)
+      _addCylinderRing(rawFaces, neckEndX, reachEndX, r3, r2, radialSegments, const Color(0xFF334252));
+    }
+
+    // D. Sap (Shank)
+    if (!hasThreadedShank) {
+      // Düz Silindirik Sap
+      final double chamferStart = shankX - 2.0;
+      _addCylinderRing(rawFaces, reachEndX, chamferStart, r2, r2, radialSegments, const Color(0xFF475569));
+      // Pah ve arka kapak
+      _addCylinderRing(rawFaces, chamferStart, shankX, r2, r2 * 0.7, radialSegments, const Color(0xFF3B4856));
+      final List<_Vec3> endCap = [];
+      for (int i = 0; i < radialSegments; i++) {
+        final double theta = i * angleStep;
+        endCap.add(_Vec3(shankX, r2 * 0.7 * math.cos(theta), r2 * 0.7 * math.sin(theta)));
+      }
+      rawFaces.add(_Face3D(vertices: endCap, color: const Color(0xFF2C3947)));
+    } else {
+      // STANDART NAS 965: Gövde -> Konik Geçiş -> 6-Gen Somun Kafa -> 1/4"-28 Vida (Uçta)
+      final double threadEndX = shankX;
+      final double threadStartX = threadEndX - threadLength;
+      final double hexEndX = threadStartX;
+      final double hexStartX = hexEndX - hexLength;
+      final double bodyEndX = hexStartX - 2.5;
+
+      // Gövde Silindiri
+      _addCylinderRing(rawFaces, reachEndX, bodyEndX, r2, r2, radialSegments, const Color(0xFF475569));
+      // Konik Omuz (Gövdeden 6-Gen Somuna)
+      final double hexRadius = (hexWidth / 2) / math.cos(math.pi / 6);
+      _addCylinderRing(rawFaces, bodyEndX, hexStartX, r2, hexRadius * 0.95, radialSegments, const Color(0xFF334252));
+
+      // 6-Gen Somun Kafa (Hexagonal Prism - 6 Düz Yüzey)
+      const int hexSides = 6;
+      const double hexAngleStep = 2 * math.pi / hexSides;
+      for (int i = 0; i < hexSides; i++) {
+        final double th1 = i * hexAngleStep;
+        final double th2 = (i + 1) * hexAngleStep;
+        final v1 = _Vec3(hexStartX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+        final v2 = _Vec3(hexStartX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v3 = _Vec3(hexEndX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v4 = _Vec3(hexEndX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+
+        final Color hexFaceColor = (i % 2 == 0)
+            ? const Color(0xFFCBD5E1)
+            : const Color(0xFF94A3B8);
+
+        rawFaces.add(_Face3D(
+          vertices: [v1, v2, v3, v4],
+          color: hexFaceColor,
+        ));
+      }
+
+      // Vidalı Kısım (1/4"-28 Vida Dişli Silindir)
+      final double rThread = threadDiameter / 2;
+      const int threadRings = 9;
+      final double ringStep = threadLength / threadRings;
+
+      for (int t = 0; t < threadRings; t++) {
+        final double tx0 = threadStartX + t * ringStep;
+        final double tx1 = tx0 + ringStep * 0.6;
+        final double tx2 = tx0 + ringStep;
+
+        final double rPeak = rThread * 1.04;
+        final double rRoot = rThread * 0.88;
+
+        _addCylinderRing(rawFaces, tx0, tx1, rRoot, rPeak, radialSegments, const Color(0xFFFFB300));
+        _addCylinderRing(rawFaces, tx1, tx2, rPeak, rRoot, radialSegments, const Color(0xFFD97706));
+      }
+
+      // Vida Uç Pahı & Ön Kapak
+      final double tipChamferStartX = threadEndX - 1.2;
+      _addCylinderRing(rawFaces, tipChamferStartX, threadEndX, rThread, rThread * 0.65, radialSegments, const Color(0xFF94A3B8));
+      final List<_Vec3> threadEndCap = [];
+      for (int i = 0; i < radialSegments; i++) {
+        final double theta = i * angleStep;
+        threadEndCap.add(_Vec3(threadEndX, rThread * 0.65 * math.cos(theta), rThread * 0.65 * math.sin(theta)));
+      }
+      rawFaces.add(_Face3D(vertices: threadEndCap, color: const Color(0xFF475569)));
+    }
+
+    // 3. 3D Döndürme & Projeksiyon
+    final double maxDim = math.max(totalLength, math.max(drillDiameter, hexWidth) * 3);
+    final double scale = (size.width * 0.72) / maxDim;
+    const double cameraDist = 450.0;
+
+    // Tüm yüzeylerin köşe noktalarını döndür
+    final List<_Face3D> rotatedFaces = rawFaces.map((face) {
+      final List<_Vec3> rotVertices = face.vertices.map((v) {
+        return v.rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+      }).toList();
+      return _Face3D(
+        vertices: rotVertices,
+        color: face.color,
+        isEdgeOnly: face.isEdgeOnly,
+      );
+    }).toList();
+
+    // 4. Painter's Algorithm: Derinliğe Göre Sıralama (Z derinliği en uzaktan en yakına)
+    rotatedFaces.sort((a, b) => a.averageZ.compareTo(b.averageZ));
+
+    // 5. Işık ve Çizim
+    final _Vec3 lightDir = const _Vec3(0.55, -0.75, -0.65).normalized;
+    const _Vec3 eyeDir = _Vec3(0, 0, -1);
+
+    final edgePaint = Paint()
+      ..color = const Color(0xFF00E5FF).withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final solidEdgePaint = Paint()
+      ..color = Colors.black.withOpacity(0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+
+    for (final face in rotatedFaces) {
+      if (face.vertices.length < 2) continue;
+
+      // 3D noktaları 2D ekrana projekte et
+      final List<Offset> projectedPoints = face.vertices.map((v) {
+        final double f = cameraDist / (cameraDist - v.z);
+        final double px = size.width / 2 + v.x * scale * zoom * f;
+        final double py = size.height / 2 + v.y * scale * zoom * f;
+        return Offset(px, py);
+      }).toList();
+
+      if (face.isEdgeOnly || face.vertices.length == 2) {
+        canvas.drawLine(projectedPoints[0], projectedPoints[1], edgePaint);
+        continue;
+      }
+
+      final path = Path()..moveTo(projectedPoints[0].dx, projectedPoints[0].dy);
+      for (int i = 1; i < projectedPoints.length; i++) {
+        path.lineTo(projectedPoints[i].dx, projectedPoints[i].dy);
+      }
+      path.close();
+
+      if (isWireframe) {
+        // Tel Kafes Görünümü
+        canvas.drawPath(path, edgePaint);
+      } else {
+        // Katı Model: Phong / Gouraud Aydınlatmalı Metalik Yüzey
+        final normal = face.normal;
+        final double diff = math.max(0.0, -normal.dot(lightDir));
+        const double ambient = 0.32;
+
+        // Speküler Parlama
+        final double nDotL = normal.dot(lightDir);
+        final _Vec3 r = (lightDir - normal * (2 * nDotL)).normalized;
+        final double spec = math.pow(math.max(0.0, -r.dot(eyeDir)), 14) * 0.45;
+
+        final double brightness = (ambient + diff * 0.60 + spec).clamp(0.18, 1.4);
+
+        Color litColor = _shadeColor(face.color, brightness);
+        if (spec > 0.18) {
+          litColor = Color.lerp(litColor, Colors.white, (spec - 0.18) * 0.75)!;
+        }
+
+        final fillPaint = Paint()
+          ..color = litColor
+          ..style = PaintingStyle.fill;
+
+        canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, solidEdgePaint);
+      }
+    }
+
+    // 6. Eksen Çizgisi (Merkez Noktalı Eksen)
+    final _Vec3 axisStart = const _Vec3(-100, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+    final _Vec3 axisEnd = const _Vec3(100, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+    final double fStart = cameraDist / (cameraDist - axisStart.z);
+    final double fEnd = cameraDist / (cameraDist - axisEnd.z);
+    final pAxis1 = Offset(size.width / 2 + axisStart.x * scale * zoom * fStart, size.height / 2 + axisStart.y * scale * zoom * fStart);
+    final pAxis2 = Offset(size.width / 2 + axisEnd.x * scale * zoom * fEnd, size.height / 2 + axisEnd.y * scale * zoom * fEnd);
+
+    final axisPaint = Paint()
+      ..color = const Color(0xFFFF5252).withOpacity(0.4)
+      ..strokeWidth = 1.0;
+    canvas.drawLine(pAxis1, pAxis2, axisPaint);
+
+    // 7. 3D Koordinat Tripod (Sol Alt Köşe)
+    _drawCoordinateTripod(canvas, Offset(46, size.height - 46));
+  }
+
+  void _addCylinderRing(
+    List<_Face3D> faces,
+    double x0,
+    double x1,
+    double r0,
+    double r1,
+    int segments,
+    Color color,
+  ) {
+    final double angleStep = 2 * math.pi / segments;
+    for (int i = 0; i < segments; i++) {
+      final double th1 = i * angleStep;
+      final double th2 = (i + 1) * angleStep;
+
+      final v0A = _Vec3(x0, r0 * math.cos(th1), r0 * math.sin(th1));
+      final v0B = _Vec3(x0, r0 * math.cos(th2), r0 * math.sin(th2));
+      final v1B = _Vec3(x1, r1 * math.cos(th2), r1 * math.sin(th2));
+      final v1A = _Vec3(x1, r1 * math.cos(th1), r1 * math.sin(th1));
+
+      faces.add(_Face3D(
+        vertices: [v0A, v0B, v1B, v1A],
+        color: color,
+      ));
+    }
+  }
+
+  Color _shadeColor(Color col, double factor) {
+    final int r = (col.red * factor).clamp(0, 255).toInt();
+    final int g = (col.green * factor).clamp(0, 255).toInt();
+    final int b = (col.blue * factor).clamp(0, 255).toInt();
+    return Color.fromARGB(col.alpha, r, g, b);
+  }
+
+  void _drawCoordinateTripod(Canvas canvas, Offset origin) {
+    const double len = 26.0;
+    final _Vec3 vx = const _Vec3(len, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+    final _Vec3 vy = const _Vec3(0, len, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+    final _Vec3 vz = const _Vec3(0, 0, len).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+
+    // X: Kırmızı (Takım Ekseni)
+    final pX = Offset(origin.dx + vx.x, origin.dy + vx.y);
+    canvas.drawLine(origin, pX, Paint()..color = const Color(0xFFFF5252)..strokeWidth = 2.0);
+    _drawText(canvas, 'X', pX, const Color(0xFFFF5252));
+
+    // Y: Yeşil (Dikey)
+    final pY = Offset(origin.dx + vy.x, origin.dy + vy.y);
+    canvas.drawLine(origin, pY, Paint()..color = const Color(0xFF69F0AE)..strokeWidth = 2.0);
+    _drawText(canvas, 'Y', pY, const Color(0xFF69F0AE));
+
+    // Z: Mavi (Derinlik)
+    final pZ = Offset(origin.dx + vz.x, origin.dy + vz.y);
+    canvas.drawLine(origin, pZ, Paint()..color = const Color(0xFF40C4FF)..strokeWidth = 2.0);
+    _drawText(canvas, 'Z', pZ, const Color(0xFF40C4FF));
+  }
+
+  void _drawText(Canvas canvas, String text, Offset pos, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(pos.dx + 2, pos.dy - 6));
+  }
+
+  @override
+  bool shouldRepaint(covariant Tool3DModelPainter oldDelegate) {
+    return oldDelegate.rotX != rotX ||
+        oldDelegate.rotY != rotY ||
+        oldDelegate.rotZ != rotZ ||
+        oldDelegate.zoom != zoom ||
+        oldDelegate.isWireframe != isWireframe ||
+        oldDelegate.toolTipType != toolTipType ||
+        oldDelegate.pointAngle != pointAngle ||
+        oldDelegate.drillDiameter != drillDiameter ||
+        oldDelegate.totalLength != totalLength ||
+        oldDelegate.fluteLength != fluteLength ||
+        oldDelegate.reachLength != reachLength ||
+        oldDelegate.neckDiameter != neckDiameter ||
+        oldDelegate.shankDiameter != shankDiameter ||
+        oldDelegate.hasThreadedShank != hasThreadedShank ||
+        oldDelegate.threadLength != threadLength ||
+        oldDelegate.threadDiameter != threadDiameter ||
+        oldDelegate.hexLength != hexLength ||
+        oldDelegate.hexWidth != hexWidth ||
+        oldDelegate.coatingColor != coatingColor;
+  }
+}
+
+// 3D Vektör Sınıfı
+class _Vec3 {
+  final double x, y, z;
+  const _Vec3(this.x, this.y, this.z);
+
+  _Vec3 operator +(_Vec3 o) => _Vec3(x + o.x, y + o.y, z + o.z);
+  _Vec3 operator -(_Vec3 o) => _Vec3(x - o.x, y - o.y, z - o.z);
+  _Vec3 operator *(double s) => _Vec3(x * s, y * s, z * s);
+
+  double dot(_Vec3 o) => x * o.x + y * o.y + z * o.z;
+  _Vec3 cross(_Vec3 o) => _Vec3(
+        y * o.z - z * o.y,
+        z * o.x - x * o.z,
+        x * o.y - y * o.x,
+      );
+
+  double get length => math.sqrt(x * x + y * y + z * z);
+  _Vec3 get normalized {
+    final l = length;
+    return l == 0 ? const _Vec3(0, 0, 0) : _Vec3(x / l, y / l, z / l);
+  }
+
+  _Vec3 rotateX(double a) {
+    final cosA = math.cos(a), sinA = math.sin(a);
+    return _Vec3(x, y * cosA - z * sinA, y * sinA + z * cosA);
+  }
+
+  _Vec3 rotateY(double a) {
+    final cosA = math.cos(a), sinA = math.sin(a);
+    return _Vec3(x * cosA + z * sinA, y, -x * sinA + z * cosA);
+  }
+
+  _Vec3 rotateZ(double a) {
+    final cosA = math.cos(a), sinA = math.sin(a);
+    return _Vec3(x * cosA - y * sinA, x * sinA + y * cosA, z);
+  }
+}
+
+// 3D Yüzey Çokgeni Sınıfı
+class _Face3D {
+  final List<_Vec3> vertices;
+  final Color color;
+  final bool isEdgeOnly;
+  final double averageZ;
+  final _Vec3 normal;
+
+  _Face3D({
+    required this.vertices,
+    required this.color,
+    this.isEdgeOnly = false,
+  })  : averageZ = vertices.fold<double>(0.0, (sum, v) => sum + v.z) / (vertices.isEmpty ? 1 : vertices.length),
+        normal = _calcNormal(vertices);
+
+  static _Vec3 _calcNormal(List<_Vec3> v) {
+    if (v.length < 3) return const _Vec3(0, 0, 1);
+    final ab = v[1] - v[0];
+    final ac = v[2] - v[0];
+    return ab.cross(ac).normalized;
   }
 }
 
