@@ -1863,19 +1863,15 @@ class _DrillTechnicalDrawingScreenState
                         child: const Icon(Icons.architecture, color: Color(0xFF00E5FF), size: 22),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '3D TEKNİK İMALAT VE CAD ÇİZİM ŞABLONU (DIN ISO 2768 / NAS 965)',
-                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
-                            ),
-                            Text(
-                              'A4 Format 1:1 Ölçek • Z=$fluteCount Ağızlı • ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']} (${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}) • 15 Denetim Balonu',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF00E5FF)),
-                            ),
-                          ],
+                      const Expanded(
+                        child: Text(
+                          '3D TEKNİK RESİM',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.8,
+                          ),
                         ),
                       ),
                       ElevatedButton.icon(
