@@ -612,234 +612,16 @@ class _DrillTechnicalDrawingScreenState
 
     doc.addPage(
       pw.Page(
-        pageFormat: const PdfPageFormat(841.89, 595.28, marginAll: 16),
+        pageFormat: const PdfPageFormat(841.89, 595.28, marginAll: 0),
         build: (pw.Context context) {
           final pdfFont = font.getFont(context);
           final pdfFontBold = fontBold.getFont(context);
 
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // 1. Antet Ust Bilgi (3D CAD Catalog Header)
-              pw.Container(
-                width: 810,
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.grey100,
-                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                ),
-                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          '3D TEKNIK IMALAT VE IZOMETRIK CAD MODEL RESMI (ISO 13399 / NAS 965)',
-                          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Text(
-                          hasThreadedShank
-                              ? '1/4"-28 VIDALI SAP HAVACILIK TAKIMI (AEROSPACE NAS 907/965 TYPE D - 53-2971)'
-                              : (toolTipType == 'endmill'
-                                  ? 'DUZ SILINDIRIK SAPLI FREZE / MATKAP (DIN 6527 / NAS 907)'
-                                  : '135° SPLIT POINT HAVACILIK MATKABI (NAS 907 TYPE B/J)'),
-                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey800),
-                        ),
-                      ],
-                    ),
-                    pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.blue900,
-                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
-                      ),
-                      child: pw.Text(
-                        'Z = $fluteCount KESICI AGIZLI',
-                        style: pw.TextStyle(fontSize: 8.5, color: PdfColors.white, fontWeight: pw.FontWeight.bold),
-                      ),
-                    ),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          'DWG: AERO-3D-${drillDiameter.toStringAsFixed(2)}mm-Z$fluteCount | d1: ${drillDiameter.toStringAsFixed(2)} mm (h9)',
-                          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-                        ),
-                        pw.Text(
-                          'TARIH: ${DateTime.now().toString().substring(0, 10)} | REV: 3D-CAD-01',
-                          style: const pw.TextStyle(fontSize: 7),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              pw.SizedBox(height: 5),
-
-              // 2. 3D Izometrik Shaded CAD Cizim Kutusu (A4 Shaded 3D Canvas)
-              pw.Container(
-                width: 810,
-                height: 275,
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.white,
-                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
-                ),
-                alignment: pw.Alignment.center,
-                child: pw.CustomPaint(
-                  size: const PdfPoint(800, 270),
-                  painter: (PdfGraphics canvas, PdfPoint size) {
-                    _draw3DIsoPdfDrill(canvas, size, pdfFont, pdfFontBold);
-                  },
-                ),
-              ),
-              pw.SizedBox(height: 5),
-
-              // 3. Alt Detaylar & Tablolar (Detay A/B + ISO 13399 Tablosu + Antet)
-              pw.Container(
-                width: 810,
-                height: 250,
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    // A. Detay A & Detay B Cizim Kutusu (220 pt)
-                    pw.Container(
-                      width: 220,
-                      height: 250,
-                      decoration: pw.BoxDecoration(
-                        color: PdfColors.white,
-                        border: pw.Border.all(color: PdfColors.black, width: 1.0),
-                      ),
-                      child: pw.CustomPaint(
-                        size: const PdfPoint(220, 250),
-                        painter: (PdfGraphics canvas, PdfPoint size) {
-                          _drawPdfDetailViews(canvas, size, pdfFont, pdfFontBold);
-                        },
-                      ),
-                    ),
-                    pw.SizedBox(width: 6),
-
-                    // B. ISO 13399 Parametre Tablosu (380 pt)
-                    pw.Container(
-                      width: 375,
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            'ISO 13399 / DIN 4000 HAVACILIK STANDART OLCU MATRISI',
-                            style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
-                          ),
-                          pw.SizedBox(height: 3),
-                          pw.Table(
-                            border: pw.TableBorder.all(color: PdfColors.grey600),
-                            columnWidths: const {
-                              0: pw.FlexColumnWidth(1.0),
-                              1: pw.FlexColumnWidth(1.0),
-                              2: pw.FlexColumnWidth(1.0),
-                              3: pw.FlexColumnWidth(1.0),
-                              4: pw.FlexColumnWidth(1.0),
-                              5: pw.FlexColumnWidth(1.0),
-                            },
-                            children: [
-                              pw.TableRow(
-                                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-                                children: [
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d1 (h9)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d2 (h6)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d3 (Boyun)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l2 (Kesme)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l3 (Reach)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.red900))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l1 (Tam)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
-                                ],
-                              ),
-                              pw.TableRow(
-                                children: [
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${drillDiameter.toStringAsFixed(2)} mm\n[${(drillDiameter / 25.4).toStringAsFixed(4)}"]', style: const pw.TextStyle(fontSize: 7))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${shankDiameter.toStringAsFixed(2)} mm\n[${(shankDiameter / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${neckDiameter.toStringAsFixed(2)} mm', style: const pw.TextStyle(fontSize: 7))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${fluteLength.toStringAsFixed(1)} mm\n[${(fluteLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${reachLength.toStringAsFixed(1)} mm\n[${(reachLength / 25.4).toStringAsFixed(3)}"]', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.red900))),
-                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${totalLength.toStringAsFixed(1)} mm\n[${(totalLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
-                                ],
-                              ),
-                            ],
-                          ),
-                          pw.SizedBox(height: 5),
-                          pw.Container(
-                            padding: const pw.EdgeInsets.all(4),
-                            decoration: pw.BoxDecoration(
-                              color: PdfColors.grey100,
-                              border: pw.Border.all(color: PdfColors.grey400),
-                            ),
-                            child: pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text('TEKNIK NOTLAR VE STANDARTLAR:', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                                pw.Text('1. Kesici kenarlar Z = $fluteCount olup ${fluteCount == 2 ? "180° simetrik çift helislidir" : "120° üçlü helis piramit merkezlidir"}.', style: const pw.TextStyle(fontSize: 6.5)),
-                                pw.Text('2. l3 boyunlu kullanılabilir derinlik olup havacılık perçin/vida deliklerinde takım sürtünmesini önler.', style: const pw.TextStyle(fontSize: 6.5)),
-                                pw.Text('3. ${hasThreadedShank ? "NAS 965 Tip D: 1/4\"-28 UNF-2A vidalı sap ve 5/16\" (7.94 mm) somun kafa havacılık standardı." : "DIN 6527 silindirik sap taşlanmış h6 toleransındadır."}', style: const pw.TextStyle(fontSize: 6.5)),
-                                pw.Text('4. Kaplama: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name']} (${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['hardness']}).', style: const pw.TextStyle(fontSize: 6.5)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    pw.SizedBox(width: 6),
-
-                    // C. Muhendislik Anteti (Engineering Title Block - 200 pt)
-                    pw.Container(
-                      width: 200,
-                      height: 250,
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(color: PdfColors.black, width: 1.0),
-                      ),
-                      padding: const pw.EdgeInsets.all(5),
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                          pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text('AIRCRAFT TOOLING CAD', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                              pw.Text('HAVACILIK TAKIM IMALAT SISTEMLERI', style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700)),
-                              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-                              pw.Text('PARCA NO: 53-2971-Z$fluteCount-${drillDiameter.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                              pw.Text('HAMMADDE: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']}', style: const pw.TextStyle(fontSize: 6.5)),
-                              pw.Text('SERTLIK: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                              pw.Text('KAPLAMA: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['shortName']}', style: const pw.TextStyle(fontSize: 6.5)),
-                              pw.Text('UC BİLEMESİ: ${pointAngle.toStringAsFixed(0)}° (${selectedTipId == 'endmill' ? 'Duz Freze' : 'Split Point'})', style: const pw.TextStyle(fontSize: 6.5)),
-                            ],
-                          ),
-                          pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
-                              pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                                children: [
-                                  pw.Text('OLCEK: 1:1 / 5:1', style: const pw.TextStyle(fontSize: 6.5)),
-                                  pw.Text('PROJ: 1. ACI (ISO)', style: const pw.TextStyle(fontSize: 6.5)),
-                                ],
-                              ),
-                              pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                                children: [
-                                  pw.Text('CIZIM NO: 3D-${drillDiameter.toStringAsFixed(1)}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                                  pw.Text('REV: 01', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          return pw.CustomPaint(
+            size: const PdfPoint(841.89, 595.28),
+            painter: (PdfGraphics canvas, PdfPoint size) {
+              _drawCompleteEngineeringBlueprintPdf(canvas, size, pdfFont, pdfFontBold);
+            },
           );
         },
       ),
@@ -848,17 +630,814 @@ class _DrillTechnicalDrawingScreenState
     return doc.save();
   }
 
-  void _draw3DIsoPdfDrill(PdfGraphics canvas, PdfPoint size, PdfFont pdfFont, PdfFont pdfFontBold) {
+  // ===========================================================================
+  // DIN EN ISO 2768 / NAS 965 TAM MÜHENDİSLİK TEKNİK RESİM ÇİZİM MOTORU (PDF)
+  // ===========================================================================
+
+  void _drawCompleteEngineeringBlueprintPdf(
+    PdfGraphics canvas,
+    PdfPoint size,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    double py(double yFromTop) => size.y - yFromTop;
+
+    // 1. Sayfa Beyaz Zemin (Drafting Paper White)
+    canvas.setFillColor(PdfColors.white);
+    canvas.drawRect(0, 0, size.x, size.y);
+    canvas.fillPath();
+
+    // 2. Çift Kenarlık (Dual Border) ve 4 Merkezleme İşareti (Centering Marks)
+    _drawPdfBlueprintBorders(canvas, size, py);
+
+    // 3. Ana Boyuna 2D Kesici Takım Görünüşü (Merkez-Sol & Üst)
+    _drawPdfMainToolView(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 4. Kesici Uç Alın Görünüşü (Sağ Üst, 4:1)
+    _drawPdfAxialView(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 5. Detay C: DIN 509 Boşaltma Kanalı (Sağ Orta, 4:1)
+    _drawPdfDetailC(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 6. Kesit A-A: Boyuna Kesit ve 45° Tarama Çizgileri (Sol Alt, 1:1)
+    _drawPdfSectionA(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 7. 3D İzometrik Shaded CAD Modeli Bölgesi (Orta Alt)
+    _drawPdf3DModelZone(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 8. Genel İmalat Notları ve Genel Yüzey Pürüzlülüğü Sembolü (Antet Üstü)
+    _drawPdfGeneralNotesAndRoughness(canvas, size, py, pdfFont, pdfFontBold);
+
+    // 9. DIN / ISO Mühendislik Anteti (Sağ Alt Köşe)
+    _drawPdfTitleBlock(canvas, size, py, pdfFont, pdfFontBold);
+  }
+
+  void _drawPdfBlueprintBorders(PdfGraphics canvas, PdfPoint size, double Function(double) py) {
+    // Dış İnce Çerçeve (0.7 pt)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.7);
+    canvas.drawRect(14, py(581.28), 813.89, 567.28);
+    canvas.strokePath();
+
+    // İç Kalın Çerçeve (1.6 pt)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.6);
+    canvas.drawRect(24, py(571.28), 793.89, 547.28);
+    canvas.strokePath();
+
+    // 4 Kenar Merkezleme Çeltikleri (Centering Marks)
+    canvas.setLineWidth(1.1);
+    // Üst Merkez
+    canvas.moveTo(420.94, py(14)); canvas.lineTo(420.94, py(24));
+    // Alt Merkez
+    canvas.moveTo(420.94, py(581.28)); canvas.lineTo(420.94, py(571.28));
+    // Sol Merkez
+    canvas.moveTo(14, py(297.64)); canvas.lineTo(24, py(297.64));
+    // Sağ Merkez
+    canvas.moveTo(827.89, py(297.64)); canvas.lineTo(817.89, py(297.64));
+    canvas.strokePath();
+  }
+
+  void _drawPdfInspectionBalloon(PdfGraphics canvas, double cx, double cyPdf, int number, PdfFont pdfFontBold) {
+    const double r = 6.5;
+    canvas.setFillColor(PdfColors.white);
+    canvas.drawEllipse(cx, cyPdf, r, r);
+    canvas.fillPath();
+    canvas.setColor(const PdfColor(0.16, 0.47, 1.0)); // Standart Mavi Balon (#2979FF)
+    canvas.setLineWidth(0.85);
+    canvas.drawEllipse(cx, cyPdf, r, r);
+    canvas.strokePath();
+    final String s = '$number';
+    final double xOff = (number >= 10) ? 3.8 : 2.2;
+    canvas.setFillColor(const PdfColor(0.16, 0.47, 1.0));
+    canvas.drawString(pdfFontBold, 6.5, s, cx - xOff, cyPdf - 2.2);
+  }
+
+  void _drawPdfChainLine(PdfGraphics canvas, double x1, double y1Pdf, double x2, double y2Pdf, {PdfColor? color, double width = 0.5}) {
+    canvas.setColor(color ?? PdfColors.grey700);
+    canvas.setLineWidth(width);
+    final double dx = x2 - x1;
+    final double dy = y2Pdf - y1Pdf;
+    final double len = math.sqrt(dx * dx + dy * dy);
+    if (len < 1.0) return;
+    final double ux = dx / len;
+    final double uy = dy / len;
+    double dist = 0.0;
+    while (dist < len) {
+      final double seg1 = math.min(12.0, len - dist);
+      canvas.moveTo(x1 + ux * dist, y1Pdf + uy * dist);
+      canvas.lineTo(x1 + ux * (dist + seg1), y1Pdf + uy * (dist + seg1));
+      canvas.strokePath();
+      dist += seg1 + 3.0;
+      if (dist >= len) break;
+      final double seg2 = math.min(2.0, len - dist);
+      canvas.moveTo(x1 + ux * dist, y1Pdf + uy * dist);
+      canvas.lineTo(x1 + ux * (dist + seg2), y1Pdf + uy * (dist + seg2));
+      canvas.strokePath();
+      dist += seg2 + 3.0;
+    }
+  }
+
+  void _drawPdfGdtFrame(PdfGraphics canvas, double x, double yPdf, String symbol, String tol, String datum, PdfFont pdfFont, PdfFont pdfFontBold) {
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.7);
+    canvas.drawRect(x, yPdf - 11, 42, 11);
+    canvas.strokePath();
+    canvas.moveTo(x + 12, yPdf - 11); canvas.lineTo(x + 12, yPdf);
+    canvas.moveTo(x + 30, yPdf - 11); canvas.lineTo(x + 30, yPdf);
+    canvas.strokePath();
+    canvas.drawString(pdfFontBold, 7, symbol, x + 3, yPdf - 8.5);
+    canvas.drawString(pdfFont, 6.5, tol, x + 14, yPdf - 8.5);
+    canvas.drawString(pdfFontBold, 7, datum, x + 33, yPdf - 8.5);
+  }
+
+  void _drawPdfDatumMarker(PdfGraphics canvas, double x, double yPdf, String label, PdfFont pdfFontBold) {
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.7);
+    canvas.drawRect(x - 5.5, yPdf - 5.5, 11, 11);
+    canvas.strokePath();
+    canvas.drawString(pdfFontBold, 7, label, x - 2.8, yPdf - 2.8);
+  }
+
+  void _drawPdfSurfaceFinish(PdfGraphics canvas, double x, double yPdf, String raVal, PdfFont pdfFont) {
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.7);
+    canvas.moveTo(x - 3, yPdf - 6);
+    canvas.lineTo(x, yPdf);
+    canvas.lineTo(x + 5, yPdf - 11);
+    canvas.lineTo(x + 16, yPdf - 11);
+    canvas.strokePath();
+    canvas.drawString(pdfFont, 6.0, raVal, x + 5.5, yPdf - 10.0);
+  }
+
+  void _drawPdfMainToolView(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double cyTop = 150.0;
+    final double cyPdf = py(cyTop);
+
+    // 1. Eksen Çizgisi (Centerline - · - · -)
+    _drawPdfChainLine(canvas, 42, cyPdf, 525, cyPdf);
+
+    final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    const double xTip = 80.0;
+    const double r1 = 18.0;
+    const double r3 = 14.5;
+    const double r2 = 18.0;
+    final double lPt = isEndMill ? 3.0 : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(6.0, 18.0);
+    final double xFluteStart = xTip + lPt;
+    const double xFluteEnd = 220.0;
+    const double xNeckEnd = 295.0;
+    const double xShankEnd = 375.0;
+    const double xHexEnd = 410.0;
+    const double xThreadEnd = 475.0;
+
+    // 2. Takım Geometrisi Gövdesi (Solid Outline)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.2);
+
+    if (isEndMill) {
+      // Düz Freze Alın ve 45° Köşe Pahları
+      canvas.moveTo(xTip, py(cyTop - 15)); canvas.lineTo(xTip, py(cyTop + 15));
+      canvas.moveTo(xTip, py(cyTop - 15)); canvas.lineTo(xTip + 3, py(cyTop - r1));
+      canvas.moveTo(xTip, py(cyTop + 15)); canvas.lineTo(xTip + 3, py(cyTop + r1));
+      // Alın Merkez Çanak Eğrisi (Dish)
+      canvas.moveTo(xTip, py(cyTop - 4)); canvas.lineTo(xTip + 1.5, py(cyTop)); canvas.lineTo(xTip, py(cyTop + 4));
+    } else {
+      // Matkap Uç Konisi (135° veya 118°)
+      canvas.moveTo(xTip, cyPdf); canvas.lineTo(xFluteStart, py(cyTop - r1));
+      canvas.moveTo(xTip, cyPdf); canvas.lineTo(xFluteStart, py(cyTop + r1));
+      // Öz Kenar (Chisel)
+      canvas.moveTo(xTip, py(cyTop - 2)); canvas.lineTo(xTip, py(cyTop + 2));
+    }
+
+    // Helis Gövde Dış Kenarları (Flute land lines)
+    canvas.moveTo(xFluteStart, py(cyTop - r1)); canvas.lineTo(xFluteEnd, py(cyTop - r1));
+    canvas.moveTo(xFluteStart, py(cyTop + r1)); canvas.lineTo(xFluteEnd, py(cyTop + r1));
+    canvas.strokePath();
+
+    // Helis Zırh ve Kanal Eğrileri (Helical lands)
+    canvas.setColor(PdfColors.grey800);
+    canvas.setLineWidth(0.8);
+    // Zırh Payı (Margin line)
+    canvas.moveTo(xFluteStart, py(cyTop - r1 + 1.6)); canvas.lineTo(xFluteEnd, py(cyTop - r1 + 1.6));
+    canvas.moveTo(xFluteStart, py(cyTop + r1 - 1.6)); canvas.lineTo(xFluteEnd, py(cyTop + r1 - 1.6));
+    canvas.strokePath();
+
+    // Helis Dalgaları (Spiral flute curves)
+    for (int k = 0; k < 4; k++) {
+      final double sx = xFluteStart + 12 + k * 28;
+      canvas.moveTo(sx, py(cyTop - r1));
+      canvas.curveTo(sx + 8, py(cyTop - 6), sx + 12, py(cyTop + 6), sx + 20, py(cyTop + r1));
+      canvas.strokePath();
+    }
+
+    // Boyun Boşaltması (Neck Transition d3)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.2);
+    // Üst Boyun ve Radyüsler
+    canvas.moveTo(xFluteEnd, py(cyTop - r1));
+    canvas.curveTo(xFluteEnd + 5, py(cyTop - r3), xFluteEnd + 6, py(cyTop - r3), xFluteEnd + 10, py(cyTop - r3));
+    canvas.lineTo(xNeckEnd - 10, py(cyTop - r3));
+    canvas.curveTo(xNeckEnd - 6, py(cyTop - r3), xNeckEnd - 5, py(cyTop - r2), xNeckEnd, py(cyTop - r2));
+
+    // Alt Boyun ve Radyüsler
+    canvas.moveTo(xFluteEnd, py(cyTop + r1));
+    canvas.curveTo(xFluteEnd + 5, py(cyTop + r3), xFluteEnd + 6, py(cyTop + r3), xFluteEnd + 10, py(cyTop + r3));
+    canvas.lineTo(xNeckEnd - 10, py(cyTop + r3));
+    canvas.curveTo(xNeckEnd - 6, py(cyTop + r3), xNeckEnd - 5, py(cyTop + r2), xNeckEnd, py(cyTop + r2));
+    canvas.strokePath();
+
+    // Silindirik Sap Gövdesi (Straight Shank d2)
+    canvas.moveTo(xNeckEnd, py(cyTop - r2)); canvas.lineTo(xShankEnd, py(cyTop - r2));
+    canvas.moveTo(xNeckEnd, py(cyTop + r2)); canvas.lineTo(xShankEnd, py(cyTop + r2));
+    canvas.strokePath();
+
+    if (hasThreadedShank) {
+      // Altıköşe Somun Kafa (Hex Collar NAS 965)
+      const double rHex = 22.0;
+      canvas.setLineWidth(1.3);
+      // Düz Alın Faturası (Washer collar face - sapa 90° dik!)
+      canvas.moveTo(xShankEnd, py(cyTop - rHex)); canvas.lineTo(xShankEnd, py(cyTop + rHex));
+      canvas.moveTo(xShankEnd, py(cyTop - rHex)); canvas.lineTo(xHexEnd, py(cyTop - rHex));
+      canvas.moveTo(xShankEnd, py(cyTop + rHex)); canvas.lineTo(xHexEnd, py(cyTop + rHex));
+      canvas.moveTo(xHexEnd, py(cyTop - rHex)); canvas.lineTo(xHexEnd, py(cyTop + rHex));
+      canvas.strokePath();
+
+      // Somun Faset Çizgileri ve 30° Köşe Pahları
+      canvas.setLineWidth(0.7);
+      canvas.moveTo(xShankEnd, py(cyTop - 11.5)); canvas.lineTo(xHexEnd, py(cyTop - 11.5));
+      canvas.moveTo(xShankEnd, py(cyTop + 11.5)); canvas.lineTo(xHexEnd, py(cyTop + 11.5));
+      canvas.strokePath();
+
+      // Boşaltma Kanalı (Detail C: DIN 509 Undercut)
+      const double xUndercut = 417.0;
+      canvas.setLineWidth(1.1);
+      canvas.moveTo(xHexEnd, py(cyTop - 14)); canvas.lineTo(xUndercut, py(cyTop - 14));
+      canvas.moveTo(xHexEnd, py(cyTop + 14)); canvas.lineTo(xUndercut, py(cyTop + 14));
+      canvas.strokePath();
+
+      // Vidalı Sap Bölümü (1/4"-28 UNF Thread)
+      const double rThCrest = 17.0;
+      const double rThRoot = 14.5;
+      canvas.setLineWidth(1.2);
+      // Diş Üstü Çizgileri
+      canvas.moveTo(xUndercut, py(cyTop - rThCrest)); canvas.lineTo(xThreadEnd - 3, py(cyTop - rThCrest));
+      canvas.moveTo(xUndercut, py(cyTop + rThCrest)); canvas.lineTo(xThreadEnd - 3, py(cyTop + rThCrest));
+      // 45° Uç Pahı ve Alın
+      canvas.lineTo(xThreadEnd, py(cyTop + rThCrest - 3));
+      canvas.lineTo(xThreadEnd, py(cyTop - rThCrest + 3));
+      canvas.lineTo(xThreadEnd - 3, py(cyTop - rThCrest));
+      canvas.strokePath();
+
+      // Diş Dibi Kesik Çizgileri (Root lines)
+      canvas.setColor(PdfColors.grey700);
+      canvas.setLineWidth(0.6);
+      canvas.moveTo(xUndercut, py(cyTop - rThRoot)); canvas.lineTo(xThreadEnd - 3, py(cyTop - rThRoot));
+      canvas.moveTo(xUndercut, py(cyTop + rThRoot)); canvas.lineTo(xThreadEnd - 3, py(cyTop + rThRoot));
+      canvas.strokePath();
+
+      // Diş Sırtı Çizgileri (Thread ridges every 3.2 pt)
+      for (double tx = xUndercut + 2.5; tx < xThreadEnd - 3; tx += 3.2) {
+        canvas.moveTo(tx, py(cyTop - rThCrest));
+        canvas.lineTo(tx + 1.2, py(cyTop + rThCrest));
+        canvas.strokePath();
+      }
+    } else {
+      // Düz Silindirik Sap Sonu ve 45° Pah
+      canvas.setLineWidth(1.2);
+      canvas.moveTo(xShankEnd, py(cyTop - r2)); canvas.lineTo(xThreadEnd - 3, py(cyTop - r2));
+      canvas.moveTo(xShankEnd, py(cyTop + r2)); canvas.lineTo(xThreadEnd - 3, py(cyTop + r2));
+      canvas.lineTo(xThreadEnd, py(cyTop + r2 - 3));
+      canvas.lineTo(xThreadEnd, py(cyTop - r2 + 3));
+      canvas.lineTo(xThreadEnd - 3, py(cyTop - r2));
+      canvas.strokePath();
+    }
+
+    // =========================================================================
+    // 3. ÖLÇÜLENDİRME ÇİZGİLERİ VE DENETİM BALONLARI (INSPECTION BALLOONS 1-10)
+    // =========================================================================
+
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.6);
+
+    // --- (1) Takım Çapı d1 (h9) ---
+    canvas.moveTo(xTip, py(cyTop - r1)); canvas.lineTo(52, py(cyTop - r1));
+    canvas.moveTo(xTip, py(cyTop + r1)); canvas.lineTo(52, py(cyTop + r1));
+    canvas.moveTo(56, py(cyTop - r1)); canvas.lineTo(56, py(cyTop + r1));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, 56, py(cyTop - r1), 0, -1, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, 56, py(cyTop + r1), 0, 1, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'd1 = ${drillDiameter.toStringAsFixed(2)} h9', 32, py(cyTop - 2));
+    _drawPdfInspectionBalloon(canvas, 38, py(cyTop - 14), 1, pdfFontBold);
+
+    // --- (2) Kesme Boyu l2 (±0.1) ---
+    canvas.moveTo(xTip, py(cyTop - r1)); canvas.lineTo(xTip, py(85));
+    canvas.moveTo(xFluteEnd, py(cyTop - r1)); canvas.lineTo(xFluteEnd, py(85));
+    canvas.moveTo(xTip, py(89)); canvas.lineTo(xFluteEnd, py(89));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xTip, py(89), -1, 0, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, xFluteEnd, py(89), 1, 0, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'l2 = ${fluteLength.toStringAsFixed(1)} +/-0.1', 125, py(84));
+    _drawPdfInspectionBalloon(canvas, 150, py(72), 2, pdfFontBold);
+
+    // --- (3) Kullanılabilir Derinlik / Reach Boyu l3 (±0.2) ---
+    canvas.moveTo(xNeckEnd, py(cyTop - r3)); canvas.lineTo(xNeckEnd, py(68));
+    canvas.moveTo(xTip, py(85)); canvas.lineTo(xTip, py(68));
+    canvas.moveTo(xTip, py(72)); canvas.lineTo(xNeckEnd, py(72));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xTip, py(72), -1, 0, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, xNeckEnd, py(72), 1, 0, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'l3 = ${reachLength.toStringAsFixed(1)} +/-0.2', 170, py(67));
+    _drawPdfInspectionBalloon(canvas, 205, py(56), 3, pdfFontBold);
+
+    // --- (4) Boyun Çapı d3 (±0.1) ---
+    const double xDimNeck = 258.0;
+    canvas.moveTo(xDimNeck, py(cyTop - r3)); canvas.lineTo(xDimNeck, py(cyTop + r3));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xDimNeck, py(cyTop - r3), 0, -1, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, xDimNeck, py(cyTop + r3), 0, 1, PdfColors.black, size: 4);
+    canvas.drawString(pdfFont, 7.0, 'd3 = ${neckDiameter.toStringAsFixed(2)}', xDimNeck - 18, py(cyTop - 2));
+    _drawPdfInspectionBalloon(canvas, xDimNeck, py(118), 4, pdfFontBold);
+
+    // --- (5) Sap Çapı d2 (h6) ---
+    const double xDimShank = 338.0;
+    canvas.moveTo(xDimShank, py(cyTop - r2)); canvas.lineTo(xDimShank, py(cyTop + r2));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xDimShank, py(cyTop - r2), 0, -1, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, xDimShank, py(cyTop + r2), 0, 1, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'd2 = ${shankDiameter.toStringAsFixed(2)} h6', xDimShank - 22, py(cyTop - 2));
+    _drawPdfInspectionBalloon(canvas, xDimShank, py(118), 5, pdfFontBold);
+
+    // --- (6) Toplam Boy l1 (±0.2) ---
+    canvas.moveTo(xTip, py(cyTop + r1)); canvas.lineTo(xTip, py(218));
+    canvas.moveTo(xThreadEnd, py(cyTop + 14)); canvas.lineTo(xThreadEnd, py(218));
+    canvas.moveTo(xTip, py(214)); canvas.lineTo(xThreadEnd, py(214));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xTip, py(214), -1, 0, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, xThreadEnd, py(214), 1, 0, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 8.0, 'l1 = ${totalLength.toStringAsFixed(1)} +/-0.2 (TAM BOY)', 230, py(208));
+    _drawPdfInspectionBalloon(canvas, 275, py(228), 6, pdfFontBold);
+
+    // --- (7) Vidalı Sap Bağlantı Çağrısı (NAS 965 Tip D) ---
+    if (hasThreadedShank) {
+      canvas.moveTo(445, py(cyTop - 17)); canvas.lineTo(465, py(105)); canvas.lineTo(515, py(105));
+      canvas.strokePath();
+      _drawPdfArrow(canvas, 445, py(cyTop - 17), -1, 1, PdfColors.black, size: 3.5);
+      canvas.drawString(pdfFontBold, 7.0, '1/4"-28 UNF-2A Dis', 466, py(100));
+      _drawPdfInspectionBalloon(canvas, 525, py(105), 7, pdfFontBold);
+
+      // --- (8) Altıköşe Somun Kafa (5/16" SW) ---
+      canvas.moveTo(392, py(cyTop - 22)); canvas.lineTo(405, py(95)); canvas.lineTo(440, py(95));
+      canvas.strokePath();
+      _drawPdfArrow(canvas, 392, py(cyTop - 22), -1, 1, PdfColors.black, size: 3.5);
+      canvas.drawString(pdfFontBold, 7.0, '5/16" SW Somun Kafa', 406, py(90));
+      _drawPdfInspectionBalloon(canvas, 450, py(95), 8, pdfFontBold);
+    } else {
+      canvas.moveTo(470, py(cyTop - r2)); canvas.lineTo(485, py(105)); canvas.lineTo(525, py(105));
+      canvas.strokePath();
+      _drawPdfArrow(canvas, 470, py(cyTop - r2), -1, 1, PdfColors.black, size: 3.5);
+      canvas.drawString(pdfFontBold, 7.0, 'DIN 6527 1x45 Pah', 486, py(100));
+      _drawPdfInspectionBalloon(canvas, 535, py(105), 7, pdfFontBold);
+    }
+
+    // --- (9) Uç Açısı Çağrısı (Point Angle) ---
+    canvas.moveTo(xTip + 2, py(cyTop - 6)); canvas.lineTo(60, py(115)); canvas.lineTo(42, py(115));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, xTip + 2, py(cyTop - 6), 1, -1, PdfColors.black, size: 3.5);
+    canvas.drawString(pdfFontBold, 7.0, isEndMill ? '180 Alin' : '${pointAngle.toStringAsFixed(0)} Uc Acisi', 28, py(110));
+    _drawPdfInspectionBalloon(canvas, 68, py(115), 9, pdfFontBold);
+
+    // --- (10) Boyun Geçiş Radyüsü (R 1.5) ---
+    canvas.moveTo(222, py(cyTop + r1 - 2)); canvas.lineTo(210, py(180)); canvas.lineTo(190, py(180));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, 222, py(cyTop + r1 - 2), 1, 1, PdfColors.black, size: 3.5);
+    canvas.drawString(pdfFont, 7.0, 'R 1.5', 192, py(176));
+    _drawPdfInspectionBalloon(canvas, 180, py(180), 10, pdfFontBold);
+
+    // =========================================================================
+    // 4. GD&T GEOMETRİK TOLERANS, DATUM VE YÜZEY KALİTESİ SEMBOLLERİ
+    // =========================================================================
+
+    // GD&T Dairesel Salgı Toleransı [ ↗ | 0,02 | B ]
+    _drawPdfGdtFrame(canvas, 125, py(100), '^', '0,02', 'B', pdfFont, pdfFontBold);
+    canvas.moveTo(146, py(111)); canvas.lineTo(152, py(cyTop - r1));
+    canvas.strokePath();
+    _drawPdfArrow(canvas, 152, py(cyTop - r1), 1, 1, PdfColors.black, size: 4);
+
+    // Datum B İşareti (Sap Çapı Üzerinde [-B-])
+    _drawPdfDatumMarker(canvas, xDimShank, py(178), 'B', pdfFontBold);
+    canvas.moveTo(xDimShank, py(cyTop + r2)); canvas.lineTo(xDimShank, py(172.5));
+    canvas.strokePath();
+
+    // Yüzey Pürüzlülüğü (Ra 0.8 Kesici Helis, Ra 1.6 Taşlanmış Sap)
+    _drawPdfSurfaceFinish(canvas, 185, py(cyTop - r1), 'Ra 0.8', pdfFont);
+    _drawPdfSurfaceFinish(canvas, 355, py(cyTop - r2), 'Ra 1.6', pdfFont);
+
+    // Kesit Düzlemi A-A Göstergesi (Cutting Plane Line)
+    const double xSec = 145.0;
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.8);
+    // Üst Segment
+    canvas.moveTo(xSec, py(112)); canvas.lineTo(xSec, py(126)); canvas.strokePath();
+    _drawPdfArrow(canvas, xSec - 6, py(119), -1, 0, PdfColors.black, size: 5);
+    canvas.drawString(pdfFontBold, 9.0, 'A', xSec + 4, py(114));
+
+    // Alt Segment
+    canvas.moveTo(xSec, py(174)); canvas.lineTo(xSec, py(188)); canvas.strokePath();
+    _drawPdfArrow(canvas, xSec - 6, py(181), -1, 0, PdfColors.black, size: 5);
+    canvas.drawString(pdfFontBold, 9.0, 'A', xSec + 4, py(186));
+
+    // Detay C Çemberi (Boşaltma Kanalı Etrafında)
+    if (hasThreadedShank) {
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(0.6);
+      canvas.drawEllipse(413.5, cyPdf, 8.5, 8.5);
+      canvas.strokePath();
+      canvas.moveTo(421, py(cyTop - 6)); canvas.lineTo(435, py(130)); canvas.lineTo(448, py(130));
+      canvas.strokePath();
+      canvas.drawString(pdfFontBold, 8.0, 'C', 451, py(126));
+    }
+  }
+
+  void _drawPdfAxialView(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double cx = 695.0;
+    const double cyTop = 110.0;
+    final double cyPdf = py(cyTop);
+    const double rAx = 38.0;
+
+    // Başlık ve Notlar
+    canvas.drawString(pdfFontBold, 8.0, 'KESICI UC ALIN GORUNUSU ( 4 : 1 )', cx - 75, py(34));
+    canvas.drawString(pdfFont, 6.5, '2 PLACES THIS VIEW', cx - 28, py(168));
+
+    // Eksen Çizgileri (+ - · - ·)
+    _drawPdfChainLine(canvas, cx - rAx - 10, cyPdf, cx + rAx + 10, cyPdf);
+    _drawPdfChainLine(canvas, cx, py(cyTop - rAx - 10), cx, py(cyTop + rAx + 10));
+
+    // Dış Çap Çemberi
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.4);
+    canvas.drawEllipse(cx, cyPdf, rAx, rAx);
+    canvas.strokePath();
+
+    if (toolTipType == 'endmill') {
+      // Düz Freze Uç Alın Geometrisi
+      canvas.setLineWidth(1.1);
+      canvas.drawEllipse(cx, cyPdf, 7.0, 7.0); canvas.strokePath(); // Alın Çanağı
+      canvas.drawEllipse(cx, cyPdf, rAx - 3.5, rAx - 3.5); canvas.strokePath(); // Köşe Pah Hattı
+      // Z-Ağızlı Radyal Kesici Bıçaklar
+      for (int k = 0; k < fluteCount; k++) {
+        final double th = k * (2 * math.pi / fluteCount);
+        canvas.moveTo(cx, cyPdf);
+        canvas.lineTo(cx + rAx * math.cos(th), cyPdf + rAx * math.sin(th));
+        canvas.strokePath();
+      }
+    } else if (fluteCount == 2) {
+      // 135° Split Point Matkap Uç Alın Geometrisi (Chisel + Çapraz Bileme)
+      const double chiselAngle = 135.0 * math.pi / 180.0;
+      const double halfWeb = 4.2;
+      final double c1x = cx - halfWeb * math.cos(chiselAngle);
+      final double c1y = cyPdf - halfWeb * math.sin(chiselAngle);
+      final double c2x = cx + halfWeb * math.cos(chiselAngle);
+      final double c2y = cyPdf + halfWeb * math.sin(chiselAngle);
+
+      canvas.setLineWidth(2.2);
+      canvas.moveTo(c1x, c1y); canvas.lineTo(c2x, c2y); canvas.strokePath();
+
+      canvas.setLineWidth(1.3);
+      canvas.moveTo(c1x, c1y); canvas.lineTo(cx - rAx * 0.95, cyPdf - 3); canvas.strokePath();
+      canvas.moveTo(c2x, c2y); canvas.lineTo(cx + rAx * 0.95, cyPdf + 3); canvas.strokePath();
+
+      // Helis Boşaltma Yayları (Thinning notches)
+      canvas.setLineWidth(0.7);
+      canvas.curveTo(c1x - 8, c1y + 6, c1x - 14, c1y + 12, cx - 18, cyPdf + 22); canvas.strokePath();
+      canvas.curveTo(c2x + 8, c2y - 6, c2x + 14, c2y - 12, cx + 18, cyPdf - 22); canvas.strokePath();
+    } else {
+      // 3 Ağızlı Piramit Helis Alın
+      canvas.setLineWidth(1.3);
+      for (int k = 0; k < 3; k++) {
+        final double th = k * (2 * math.pi / 3);
+        canvas.moveTo(cx, cyPdf);
+        canvas.lineTo(cx + rAx * 0.95 * math.cos(th), cyPdf + rAx * 0.95 * math.sin(th));
+        canvas.strokePath();
+      }
+      canvas.drawEllipse(cx, cyPdf, 3.5, 3.5); canvas.strokePath();
+    }
+
+    // Çap Ölçülendirmesi (Ø d1) ve Denetim Balonu (11)
+    const double diagX = rAx * 0.707;
+    const double diagY = rAx * 0.707;
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.6);
+    canvas.moveTo(cx - diagX, cyPdf - diagY); canvas.lineTo(cx + diagX, cyPdf + diagY);
+    canvas.strokePath();
+    _drawPdfArrow(canvas, cx - diagX, cyPdf - diagY, -1, -1, PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, cx + diagX, cyPdf + diagY, 1, 1, PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'd1 = ${drillDiameter.toStringAsFixed(2)}', cx + diagX + 4, cyPdf + diagY + 4);
+    _drawPdfInspectionBalloon(canvas, cx + diagX + 38, cyPdf + diagY + 6, 11, pdfFontBold);
+  }
+
+  void _drawPdfDetailC(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double bx = 695.0;
+    const double byTop = 245.0;
+    final double byPdf = py(byTop);
+
+    canvas.drawString(pdfFontBold, 8.0, 'C ( 4 : 1 )', bx - 35, py(192));
+    canvas.drawString(pdfFont, 6.5, 'E 0,4x0,2 DIN 509', bx - 35, py(200));
+    _drawPdfInspectionBalloon(canvas, bx + 42, py(196), 12, pdfFontBold);
+
+    // Boşaltma Kanalı Büyütülmüş Kesiti (Detail C Undercut Profile)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.1);
+    // Sol Fatura Duvarı
+    canvas.moveTo(bx - 25, byPdf + 18); canvas.lineTo(bx - 12, byPdf + 18);
+    canvas.lineTo(bx - 12, byPdf - 4);
+    // R0.4 Kavisli Taban
+    canvas.curveTo(bx - 12, byPdf - 10, bx - 6, byPdf - 10, bx - 4, byPdf - 10);
+    // 15° Eğimli Çıkış Hattı
+    canvas.lineTo(bx + 14, byPdf - 5);
+    canvas.lineTo(bx + 26, byPdf - 5);
+    canvas.strokePath();
+
+    // Boyut Okları ve Yazılar (2 mm genişlik, 0.2 mm derinlik, 15°, R0.4)
+    canvas.setColor(PdfColors.grey800);
+    canvas.setLineWidth(0.6);
+    // Genişlik 2
+    canvas.moveTo(bx - 12, byPdf + 22); canvas.lineTo(bx + 14, byPdf + 22); canvas.strokePath();
+    _drawPdfArrow(canvas, bx - 12, byPdf + 22, -1, 0, PdfColors.grey800, size: 3);
+    _drawPdfArrow(canvas, bx + 14, byPdf + 22, 1, 0, PdfColors.grey800, size: 3);
+    canvas.drawString(pdfFontBold, 6.5, '2', bx - 1, byPdf + 24);
+
+    // Derinlik 0.2
+    canvas.moveTo(bx + 22, byPdf - 10); canvas.lineTo(bx + 22, byPdf - 5); canvas.strokePath();
+    _drawPdfArrow(canvas, bx + 22, byPdf - 10, 0, -1, PdfColors.grey800, size: 2.8);
+    _drawPdfArrow(canvas, bx + 22, byPdf - 5, 0, 1, PdfColors.grey800, size: 2.8);
+    canvas.drawString(pdfFont, 6.0, '0,2', bx + 25, byPdf - 9);
+
+    // Açı 15°
+    canvas.drawString(pdfFont, 6.0, '15 deg', bx + 20, byPdf + 2);
+    // Radyüs R0.4
+    canvas.drawString(pdfFont, 6.0, 'R0,4', bx - 10, byPdf - 17);
+  }
+
+  void _drawPdfSectionA(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double cyTop = 445.0;
+    final double cyPdf = py(cyTop);
+
+    canvas.drawString(pdfFontBold, 8.5, 'A - A  ( 1 : 1 )', 40, py(325));
+
+    // Eksen Çizgisi
+    _drawPdfChainLine(canvas, 38, cyPdf, 248, cyPdf);
+
+    const double x0 = 48.0;
+    const double xEnd = 235.0;
+    const double rExt = 18.0;
+    final double webCore = (drillDiameter * 0.22).clamp(1.2, 5.0);
+    final double rWeb = webCore * 2.8;
+
+    // Kesit Gövde Dış Sınırları
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.1);
+    canvas.moveTo(x0, py(cyTop - rExt)); canvas.lineTo(xEnd, py(cyTop - rExt));
+    canvas.lineTo(xEnd, py(cyTop + rExt)); canvas.lineTo(x0, py(cyTop + rExt));
+    canvas.lineTo(x0, py(cyTop - rExt));
+    canvas.strokePath();
+
+    // 45° Standart Metal Tarama Çizgileri (Hatching - Tarama)
+    canvas.setColor(const PdfColor(0.5, 0.55, 0.65));
+    canvas.setLineWidth(0.45);
+    for (double hx = x0 - rExt; hx < xEnd + rExt; hx += 3.8) {
+      final double px1 = hx.clamp(x0, xEnd);
+      final double py1 = (cyTop - rExt + (px1 - hx)).clamp(cyTop - rExt, cyTop + rExt);
+      final double px2 = (hx + rExt * 2).clamp(x0, xEnd);
+      final double py2 = (cyTop - rExt + (px2 - hx)).clamp(cyTop - rExt, cyTop + rExt);
+      if ((px2 - px1).abs() > 1.0) {
+        canvas.moveTo(px1, py(py1));
+        canvas.lineTo(px2, py(py2));
+        canvas.strokePath();
+      }
+    }
+
+    // İç Çekirdek Öz Kalınlığı Kanalı (Web Thickness b)
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.0);
+    canvas.moveTo(x0, py(cyTop - rWeb)); canvas.lineTo(xEnd - 40, py(cyTop - rWeb));
+    canvas.moveTo(x0, py(cyTop + rWeb)); canvas.lineTo(xEnd - 40, py(cyTop + rWeb));
+    canvas.strokePath();
+
+    // Kesit Ölçülendirmeleri ve Denetim Balonları (13, 14, 15)
+    canvas.setLineWidth(0.6);
+    // (13) Öz Kalınlığı b
+    canvas.moveTo(85, py(cyTop - rWeb)); canvas.lineTo(85, py(cyTop + rWeb)); canvas.strokePath();
+    _drawPdfArrow(canvas, 85, py(cyTop - rWeb), 0, -1, PdfColors.black, size: 3.5);
+    _drawPdfArrow(canvas, 85, py(cyTop + rWeb), 0, 1, PdfColors.black, size: 3.5);
+    canvas.drawString(pdfFontBold, 6.5, 'b = ${webCore.toStringAsFixed(2)}', 90, py(cyTop - 2));
+    _drawPdfInspectionBalloon(canvas, 120, py(cyTop - 22), 13, pdfFontBold);
+
+    // (14) Helis Kanal Derinliği
+    canvas.drawString(pdfFont, 6.5, 'Kanal = ${((drillDiameter - webCore) / 2).toStringAsFixed(2)}', 135, py(cyTop + 24));
+    _drawPdfInspectionBalloon(canvas, 182, py(cyTop + 24), 14, pdfFontBold);
+
+    // (15) Uç Pahı 0.5x45°
+    canvas.drawString(pdfFont, 6.5, '0,5x45', 215, py(cyTop + 24));
+    _drawPdfInspectionBalloon(canvas, 245, py(cyTop + 24), 15, pdfFontBold);
+  }
+
+  void _drawPdf3DModelZone(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double bx = 265.0;
+    const double byTop = 310.0;
+    const double bw = 245.0;
+    const double bh = 255.0;
+
+    // 3D Alanı Dış Çerçevesi (Subtle border)
+    canvas.setColor(const PdfColor(0.85, 0.88, 0.92));
+    canvas.setLineWidth(0.8);
+    canvas.drawRect(bx, py(byTop + bh), bw, bh);
+    canvas.strokePath();
+
+    // Üst Rozet / Başlık
+    canvas.setFillColor(const PdfColor(0.94, 0.96, 0.98));
+    canvas.drawRect(bx, py(byTop + 18), bw, 18);
+    canvas.fillPath();
+    canvas.setColor(PdfColors.blue900);
+    canvas.drawString(pdfFontBold, 7.5, '3D IZOMETRIK CAD MODELI (ISO 13399)', bx + 10, py(byTop + 12));
+
+    // 3D Gölgeli Modeli Çizdir (No dimensions, clean rendering in box)
+    _draw3DIsoPdfDrill(
+      canvas,
+      size,
+      pdfFont,
+      pdfFontBold,
+      customCx: bx + bw / 2,
+      customCy: py(byTop + bh / 2 + 10),
+      customW: bw - 15,
+      customH: bh - 40,
+      showDimensions: false,
+    );
+  }
+
+  void _drawPdfGeneralNotesAndRoughness(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double nx = 525.0;
+    const double nyTop = 318.0;
+
+    // Genel İmalat Notları (Technical Notes DIN ISO 2768)
+    canvas.setFillColor(PdfColors.black);
+    canvas.drawString(pdfFontBold, 7.5, 'GENEL IMALAT VE HAVACILIK NOTLARI:', nx, py(nyTop));
+    canvas.drawString(pdfFont, 6.8, '1. General tolerance DIN ISO 2768 -medium.', nx, py(nyTop + 13));
+    canvas.drawString(pdfFont, 6.8, '2. Deburr and break sharp edges 0,1...0,3 mm.', nx, py(nyTop + 24));
+    canvas.drawString(pdfFont, 6.8, '3. Scratches and dents are not acceptable.', nx, py(nyTop + 35));
+    canvas.drawString(pdfFont, 6.8, '4. Havacilik Standardi: NAS 907 / NAS 965 Tip D - ISO 13399', nx, py(nyTop + 46));
+    canvas.drawString(pdfFont, 6.8, '5. Malzeme: Solid Carbide (Mikro-tane Karbur VHM, 92 HRA)', nx, py(nyTop + 57));
+    canvas.drawString(pdfFont, 6.8, '6. Yuzey: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name']} (${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['hardness']})', nx, py(nyTop + 68));
+
+    // Genel Yüzey Pürüzlülüğü Sembolü (ISO 1302: 3,2 / \ ( \/ ) )
+    const double rx = 765.0;
+    const double ryTop = 350.0;
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.8);
+    // Kök İşareti / Çentik
+    canvas.moveTo(rx, py(ryTop + 10));
+    canvas.lineTo(rx + 4, py(ryTop + 20));
+    canvas.lineTo(rx + 11, py(ryTop));
+    canvas.lineTo(rx + 24, py(ryTop));
+    canvas.strokePath();
+    // 3,2 Değeri
+    canvas.drawString(pdfFontBold, 7.5, '3,2', rx + 10, py(ryTop - 2));
+    // Parantez İçinde ( \/ ) Sembolü
+    canvas.drawString(pdfFont, 8.0, '( \\/ )', rx + 27, py(ryTop + 6));
+  }
+
+  void _drawPdfTitleBlock(
+    PdfGraphics canvas,
+    PdfPoint size,
+    double Function(double) py,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold,
+  ) {
+    const double tx = 520.0;
+    const double tyTop = 428.0;
+    const double tw = 297.89;
+    const double th = 143.28;
+
+    // Dış Çerçeve
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.3);
+    canvas.drawRect(tx, py(tyTop + th), tw, th);
+    canvas.strokePath();
+
+    // Yatay Ara Çizgiler
+    canvas.setLineWidth(0.7);
+    canvas.moveTo(tx, py(tyTop + 24)); canvas.lineTo(tx + tw, py(tyTop + 24));
+    canvas.moveTo(tx, py(tyTop + 54)); canvas.lineTo(tx + tw, py(tyTop + 54));
+    canvas.moveTo(tx, py(tyTop + 84)); canvas.lineTo(tx + tw, py(tyTop + 84));
+    canvas.moveTo(tx, py(tyTop + 114)); canvas.lineTo(tx + tw, py(tyTop + 114));
+    canvas.strokePath();
+
+    // Dikey Ara Çizgiler
+    canvas.moveTo(tx + 145, py(tyTop)); canvas.lineTo(tx + 145, py(tyTop + th));
+    canvas.moveTo(tx + 60, py(tyTop + 24)); canvas.lineTo(tx + 60, py(tyTop + 84));
+    canvas.moveTo(tx + 225, py(tyTop)); canvas.lineTo(tx + 225, py(tyTop + 24));
+    canvas.strokePath();
+
+    // --- Satır 1: Tolerans, Ağırlık, Format ---
+    canvas.drawString(pdfFont, 6.5, 'Tolerans: DIN ISO 2768-m', tx + 8, py(tyTop + 15));
+    canvas.drawString(pdfFont, 6.5, 'Gewicht: ~38g', tx + 152, py(tyTop + 15));
+    canvas.drawString(pdfFontBold, 7.5, 'Format: A4', tx + 233, py(tyTop + 15));
+
+    // --- Satır 2: Çizen (Draw) & Ölçek ---
+    canvas.drawString(pdfFontBold, 6.8, 'Draw', tx + 8, py(tyTop + 42));
+    canvas.drawString(pdfFont, 6.5, DateTime.now().toString().substring(0, 10), tx + 66, py(tyTop + 37));
+    canvas.drawString(pdfFontBold, 7.0, 'H.CANLI', tx + 66, py(tyTop + 47));
+    canvas.drawString(pdfFont, 6.5, 'Scale: 1:1 / 4:1', tx + 152, py(tyTop + 38));
+    canvas.drawString(pdfFont, 6.5, 'Proj: 1. ACI (ISO)', tx + 152, py(tyTop + 48));
+
+    // --- Satır 3: Kontrol (Check) & Çizim No ---
+    canvas.drawString(pdfFontBold, 6.8, 'Check', tx + 8, py(tyTop + 72));
+    canvas.drawString(pdfFont, 6.5, DateTime.now().toString().substring(0, 10), tx + 66, py(tyTop + 67));
+    canvas.drawString(pdfFontBold, 7.0, 'QC-PASS', tx + 66, py(tyTop + 77));
+    canvas.drawString(pdfFontBold, 7.5, 'DWG NO: 53-2971-Z$fluteCount', tx + 152, py(tyTop + 72));
+
+    // --- Satır 4: Malzeme & Parça Adı ---
+    canvas.drawString(pdfFontBold, 6.5, 'Material:', tx + 8, py(tyTop + 97));
+    canvas.drawString(pdfFont, 6.5, 'Solid Carbide (VHM)', tx + 8, py(tyTop + 107));
+    canvas.drawString(pdfFontBold, 9.0, 'AERO-TOOL-53-2971-Z$fluteCount', tx + 152, py(tyTop + 102));
+
+    // --- Satır 5: Kaplama & Takım Tanımı ---
+    canvas.drawString(pdfFontBold, 6.5, 'Finish:', tx + 8, py(tyTop + 127));
+    canvas.drawString(pdfFont, 6.5, toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name'].toString().split(' ')[0], tx + 8, py(tyTop + 137));
+    canvas.drawString(pdfFontBold, 7.5, 'HAVACILIK MATKAP / FREZE TAKIMI', tx + 152, py(tyTop + 127));
+    canvas.drawString(pdfFont, 6.5, 'NAS 965 TIP D / DIN 6527 (ISO 13399)', tx + 152, py(tyTop + 137));
+  }
+
+  void _draw3DIsoPdfDrill(
+    PdfGraphics canvas,
+    PdfPoint size,
+    PdfFont pdfFont,
+    PdfFont pdfFontBold, {
+    double? customCx,
+    double? customCy,
+    double? customW,
+    double? customH,
+    bool showDimensions = true,
+  }) {
     // 1. Isometric Background Grid (Subtle CAD lines)
-    canvas.setColor(const PdfColor(0.93, 0.95, 0.98));
-    canvas.setLineWidth(0.4);
-    for (double x = -size.x; x < size.x * 2; x += 22) {
-      canvas.moveTo(x, 0);
-      canvas.lineTo(x + size.y * 0.577, size.y);
-      canvas.strokePath();
-      canvas.moveTo(x, size.y);
-      canvas.lineTo(x + size.y * 0.577, 0);
-      canvas.strokePath();
+    if (customCx != null && customCy != null && customW != null && customH != null) {
+      final double bx = customCx - customW / 2;
+      final double by = customCy - customH / 2;
+      canvas.setColor(const PdfColor(0.94, 0.96, 0.98));
+      canvas.setLineWidth(0.4);
+      for (double x = -customW; x < customW * 2; x += 18) {
+        final gx1 = (bx + x).clamp(bx, bx + customW);
+        final gx2 = (bx + x + customH * 0.577).clamp(bx, bx + customW);
+        canvas.moveTo(gx1, by);
+        canvas.lineTo(gx2, by + customH);
+        canvas.strokePath();
+      }
+    } else {
+      canvas.setColor(const PdfColor(0.93, 0.95, 0.98));
+      canvas.setLineWidth(0.4);
+      for (double x = -size.x; x < size.x * 2; x += 22) {
+        canvas.moveTo(x, 0);
+        canvas.lineTo(x + size.y * 0.577, size.y);
+        canvas.strokePath();
+        canvas.moveTo(x, size.y);
+        canvas.lineTo(x + size.y * 0.577, 0);
+        canvas.strokePath();
+      }
     }
 
     // 2. 3D Model Geometry Generation
@@ -1098,9 +1677,9 @@ class _DrillTechnicalDrawingScreenState
     const double pdfRotY = 0.58;
     const double pdfRotZ = 0.0;
     final double maxDim = math.max(totalLength, math.max(drillDiameter, hexWidth) * 3);
-    final double scale = (size.x * 0.56) / maxDim;
-    final double cx = size.x * 0.48;
-    final double cy = size.y * 0.50;
+    final double scale = (customW != null) ? (customW * 0.68) / maxDim : (size.x * 0.56) / maxDim;
+    final double cx = customCx ?? (size.x * 0.48);
+    final double cy = customCy ?? (size.y * 0.50);
 
     final rotatedFaces = rawFaces.map((f) {
       return _Face3D(
@@ -1148,243 +1727,126 @@ class _DrillTechnicalDrawingScreenState
       canvas.strokePath();
     }
 
-    // 4. ISO 3D Leader Dimension Lines in PDF
     Offset projectPdf(_Vec3 v) {
       final rotV = v.rotateX(pdfRotX).rotateY(pdfRotY).rotateZ(pdfRotZ);
       return Offset(cx + rotV.x * scale, cy + rotV.y * scale);
     }
 
-    // d1 Leader
-    final pTipTop = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1, 0));
-    final pTipLead = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1 + 18, 0));
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(0.8);
-    canvas.moveTo(pTipTop.dx, pTipTop.dy);
-    canvas.lineTo(pTipLead.dx, pTipLead.dy);
-    canvas.lineTo(pTipLead.dx + 25, pTipLead.dy);
-    canvas.strokePath();
-    _drawPdfArrow(canvas, pTipTop.dx, pTipTop.dy, (pTipTop.dx - pTipLead.dx), (pTipTop.dy - pTipLead.dy), PdfColors.black, size: 4.5);
-    canvas.drawString(pdfFontBold, 7.5, 'd1 = Ø${drillDiameter.toStringAsFixed(2)} mm (h9)', pTipLead.dx + 2, pTipLead.dy + 3);
-
-    // l2 Flute Length
-    final pL2_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 12), 0));
-    final pL2_1 = projectPdf(_Vec3(fluteEndX, -(r1 + 12), 0));
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(0.8);
-    canvas.moveTo(pL2_0.dx, pL2_0.dy); canvas.lineTo(pL2_1.dx, pL2_1.dy); canvas.strokePath();
-    _drawPdfArrow(canvas, pL2_0.dx, pL2_0.dy, (pL2_1.dx - pL2_0.dx), (pL2_1.dy - pL2_0.dy), PdfColors.black, size: 4);
-    _drawPdfArrow(canvas, pL2_1.dx, pL2_1.dy, (pL2_0.dx - pL2_1.dx), (pL2_0.dy - pL2_1.dy), PdfColors.black, size: 4);
-    canvas.drawString(pdfFont, 7.5, 'l2 = ${fluteLength.toStringAsFixed(1)} mm', (pL2_0.dx + pL2_1.dx) / 2 - 18, pL2_0.dy - 10);
-
-    // l3 Usable Reach Length (RED HIGHLIGHT)
-    final pL3_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 22), 0));
-    final pL3_1 = projectPdf(_Vec3(reachEndX, -(r1 + 22), 0));
-    canvas.setColor(PdfColors.red900);
-    canvas.setLineWidth(1.0);
-    canvas.moveTo(pL3_0.dx, pL3_0.dy); canvas.lineTo(pL3_1.dx, pL3_1.dy); canvas.strokePath();
-    _drawPdfArrow(canvas, pL3_0.dx, pL3_0.dy, (pL3_1.dx - pL3_0.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
-    _drawPdfArrow(canvas, pL3_1.dx, pL3_1.dy, (pL3_0.dx - pL3_1.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
-    canvas.drawString(pdfFontBold, 7.5, 'l3 = ${reachLength.toStringAsFixed(1)} mm [Kullanilabilir]', (pL3_0.dx + pL3_1.dx) / 2 - 25, pL3_0.dy - 10);
-
-    // l1 Total Length
-    final pL1_0 = projectPdf(_Vec3(tipX, -(r1 + 34), 0));
-    final pL1_1 = projectPdf(_Vec3(shankX, -(r1 + 34), 0));
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(0.9);
-    canvas.moveTo(pL1_0.dx, pL1_0.dy); canvas.lineTo(pL1_1.dx, pL1_1.dy); canvas.strokePath();
-    _drawPdfArrow(canvas, pL1_0.dx, pL1_0.dy, (pL1_1.dx - pL1_0.dx), (pL1_1.dy - pL1_0.dy), PdfColors.black, size: 4);
-    _drawPdfArrow(canvas, pL1_1.dx, pL1_1.dy, (pL1_0.dx - pL1_1.dx), (pL1_0.dy - pL1_1.dy), PdfColors.black, size: 4);
-    canvas.drawString(pdfFontBold, 8, 'l1 = ${totalLength.toStringAsFixed(1)} mm (Tam Boy)', (pL1_0.dx + pL1_1.dx) / 2 - 25, pL1_0.dy - 10);
-
-    // Thread & Hex callout
-    if (hasThreadedShank) {
-      final pThreadLead0 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 4, 0));
-      final pThreadLead1 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 20, 0));
-      canvas.setColor(PdfColors.amber900);
+    // 4. ISO 3D Leader Dimension Lines in PDF
+    if (showDimensions) {
+      // d1 Leader
+      final pTipTop = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1, 0));
+      final pTipLead = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1 + 18, 0));
+      canvas.setColor(PdfColors.black);
       canvas.setLineWidth(0.8);
-      canvas.moveTo(pThreadLead0.dx, pThreadLead0.dy);
-      canvas.lineTo(pThreadLead1.dx, pThreadLead1.dy);
-      canvas.lineTo(pThreadLead1.dx + 25, pThreadLead1.dy);
+      canvas.moveTo(pTipTop.dx, pTipTop.dy);
+      canvas.lineTo(pTipLead.dx, pTipLead.dy);
+      canvas.lineTo(pTipLead.dx + 25, pTipLead.dy);
       canvas.strokePath();
-      _drawPdfArrow(canvas, pThreadLead0.dx, pThreadLead0.dy, (pThreadLead0.dx - pThreadLead1.dx), (pThreadLead0.dy - pThreadLead1.dy), PdfColors.amber900, size: 4);
-      canvas.drawString(pdfFontBold, 7, '1/4"-28 UNF-2A Dis', pThreadLead1.dx + 2, pThreadLead1.dy + 3);
+      _drawPdfArrow(canvas, pTipTop.dx, pTipTop.dy, (pTipTop.dx - pTipLead.dx), (pTipTop.dy - pTipLead.dy), PdfColors.black, size: 4.5);
+      canvas.drawString(pdfFontBold, 7.5, 'd1 = Ø${drillDiameter.toStringAsFixed(2)} mm (h9)', pTipLead.dx + 2, pTipLead.dy + 3);
 
-      final pHexLead0 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 4, 0));
-      final pHexLead1 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 24, 0));
-      canvas.setColor(PdfColors.grey800);
+      // l2 Flute Length
+      final pL2_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 12), 0));
+      final pL2_1 = projectPdf(_Vec3(fluteEndX, -(r1 + 12), 0));
+      canvas.setColor(PdfColors.black);
       canvas.setLineWidth(0.8);
-      canvas.moveTo(pHexLead0.dx, pHexLead0.dy);
-      canvas.lineTo(pHexLead1.dx, pHexLead1.dy);
-      canvas.lineTo(pHexLead1.dx - 25, pHexLead1.dy);
-      canvas.strokePath();
-      _drawPdfArrow(canvas, pHexLead0.dx, pHexLead0.dy, (pHexLead0.dx - pHexLead1.dx), (pHexLead0.dy - pHexLead1.dy), PdfColors.grey800, size: 4);
-      canvas.drawString(pdfFontBold, 7, '5/16" SW Somun Kafa', pHexLead1.dx - 80, pHexLead1.dy + 3);
+      canvas.moveTo(pL2_0.dx, pL2_0.dy); canvas.lineTo(pL2_1.dx, pL2_1.dy); canvas.strokePath();
+      _drawPdfArrow(canvas, pL2_0.dx, pL2_0.dy, (pL2_1.dx - pL2_0.dx), (pL2_1.dy - pL2_0.dy), PdfColors.black, size: 4);
+      _drawPdfArrow(canvas, pL2_1.dx, pL2_1.dy, (pL2_0.dx - pL2_1.dx), (pL2_0.dy - pL2_1.dy), PdfColors.black, size: 4);
+      canvas.drawString(pdfFont, 7.5, 'l2 = ${fluteLength.toStringAsFixed(1)} mm', (pL2_0.dx + pL2_1.dx) / 2 - 18, pL2_0.dy - 10);
+
+      // l3 Usable Reach Length (RED HIGHLIGHT)
+      final pL3_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 22), 0));
+      final pL3_1 = projectPdf(_Vec3(reachEndX, -(r1 + 22), 0));
+      canvas.setColor(PdfColors.red900);
+      canvas.setLineWidth(1.0);
+      canvas.moveTo(pL3_0.dx, pL3_0.dy); canvas.lineTo(pL3_1.dx, pL3_1.dy); canvas.strokePath();
+      _drawPdfArrow(canvas, pL3_0.dx, pL3_0.dy, (pL3_1.dx - pL3_0.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
+      _drawPdfArrow(canvas, pL3_1.dx, pL3_1.dy, (pL3_0.dx - pL3_1.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
+      canvas.drawString(pdfFontBold, 7.5, 'l3 = ${reachLength.toStringAsFixed(1)} mm [Kullanilabilir]', (pL3_0.dx + pL3_1.dx) / 2 - 25, pL3_0.dy - 10);
+
+      // l1 Total Length
+      final pL1_0 = projectPdf(_Vec3(tipX, -(r1 + 34), 0));
+      final pL1_1 = projectPdf(_Vec3(shankX, -(r1 + 34), 0));
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(0.9);
+      canvas.moveTo(pL1_0.dx, pL1_0.dy); canvas.lineTo(pL1_1.dx, pL1_1.dy); canvas.strokePath();
+      _drawPdfArrow(canvas, pL1_0.dx, pL1_0.dy, (pL1_1.dx - pL1_0.dx), (pL1_1.dy - pL1_0.dy), PdfColors.black, size: 4);
+      _drawPdfArrow(canvas, pL1_1.dx, pL1_1.dy, (pL1_0.dx - pL1_1.dx), (pL1_0.dy - pL1_1.dy), PdfColors.black, size: 4);
+      canvas.drawString(pdfFontBold, 8, 'l1 = ${totalLength.toStringAsFixed(1)} mm (Tam Boy)', (pL1_0.dx + pL1_1.dx) / 2 - 25, pL1_0.dy - 10);
+
+      // Thread & Hex callout
+      if (hasThreadedShank) {
+        final pThreadLead0 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 4, 0));
+        final pThreadLead1 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 20, 0));
+        canvas.setColor(PdfColors.amber900);
+        canvas.setLineWidth(0.8);
+        canvas.moveTo(pThreadLead0.dx, pThreadLead0.dy);
+        canvas.lineTo(pThreadLead1.dx, pThreadLead1.dy);
+        canvas.lineTo(pThreadLead1.dx + 25, pThreadLead1.dy);
+        canvas.strokePath();
+        _drawPdfArrow(canvas, pThreadLead0.dx, pThreadLead0.dy, (pThreadLead0.dx - pThreadLead1.dx), (pThreadLead0.dy - pThreadLead1.dy), PdfColors.amber900, size: 4);
+        canvas.drawString(pdfFontBold, 7, '1/4"-28 UNF-2A Dis', pThreadLead1.dx + 2, pThreadLead1.dy + 3);
+
+        final pHexLead0 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 4, 0));
+        final pHexLead1 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 24, 0));
+        canvas.setColor(PdfColors.grey800);
+        canvas.setLineWidth(0.8);
+        canvas.moveTo(pHexLead0.dx, pHexLead0.dy);
+        canvas.lineTo(pHexLead1.dx, pHexLead1.dy);
+        canvas.lineTo(pHexLead1.dx - 25, pHexLead1.dy);
+        canvas.strokePath();
+        _drawPdfArrow(canvas, pHexLead0.dx, pHexLead0.dy, (pHexLead0.dx - pHexLead1.dx), (pHexLead0.dy - pHexLead1.dy), PdfColors.grey800, size: 4);
+        canvas.drawString(pdfFontBold, 7, '5/16" SW Somun Kafa', pHexLead1.dx - 80, pHexLead1.dy + 3);
+      }
     }
 
-    // 5. Isometric Coordinate Tripod in Bottom Left
-    const double axLen = 22.0;
-    const pOrigin = Offset(35, 35);
+    // 5. Isometric Coordinate Tripod in Corner
+    const double axLen = 18.0;
+    final pOrigin = (customCx != null && customCy != null)
+        ? Offset(customCx - (customW ?? 200) * 0.42, customCy - (customH ?? 150) * 0.38)
+        : const Offset(35, 35);
     final pAxX = projectPdf(const _Vec3(axLen, 0, 0)) - Offset(cx, cy) + pOrigin;
     final pAxY = projectPdf(const _Vec3(0, axLen, 0)) - Offset(cx, cy) + pOrigin;
     final pAxZ = projectPdf(const _Vec3(0, 0, axLen)) - Offset(cx, cy) + pOrigin;
 
-    canvas.setColor(PdfColors.red); canvas.setLineWidth(1.2);
+    canvas.setColor(PdfColors.red); canvas.setLineWidth(1.1);
     canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxX.dx, pAxX.dy); canvas.strokePath();
-    canvas.drawString(pdfFontBold, 6.5, 'X', pAxX.dx + 2, pAxX.dy - 2);
+    canvas.drawString(pdfFontBold, 6.0, 'X', pAxX.dx + 2, pAxX.dy - 2);
 
-    canvas.setColor(PdfColors.green); canvas.setLineWidth(1.2);
+    canvas.setColor(PdfColors.green); canvas.setLineWidth(1.1);
     canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxY.dx, pAxY.dy); canvas.strokePath();
-    canvas.drawString(pdfFontBold, 6.5, 'Y', pAxY.dx + 2, pAxY.dy - 2);
+    canvas.drawString(pdfFontBold, 6.0, 'Y', pAxY.dx + 2, pAxY.dy - 2);
 
-    canvas.setColor(PdfColors.blue); canvas.setLineWidth(1.2);
+    canvas.setColor(PdfColors.blue); canvas.setLineWidth(1.1);
     canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxZ.dx, pAxZ.dy); canvas.strokePath();
-    canvas.drawString(pdfFontBold, 6.5, 'Z', pAxZ.dx + 2, pAxZ.dy - 2);
+    canvas.drawString(pdfFontBold, 6.0, 'Z', pAxZ.dx + 2, pAxZ.dy - 2);
   }
 
-  void _drawPdfDetailViews(PdfGraphics canvas, PdfPoint size, PdfFont pdfFont, PdfFont pdfFontBold) {
-    // Detail Box Border
-    canvas.setColor(PdfColors.grey400);
-    canvas.setLineWidth(0.8);
-    canvas.drawRect(0, 0, size.x, size.y);
-    canvas.strokePath();
+  // ===========================================================================
+  // 3D TEKNİK RESİM ETKİLEŞİMLİ ÖNİZLEME MODAL PENCERESİ (IN-APP CAD BLUEPRINT)
+  // ===========================================================================
 
-    // Dividing Line between Detail A and Detail B
-    canvas.moveTo(0, size.y * 0.50);
-    canvas.lineTo(size.x, size.y * 0.50);
-    canvas.strokePath();
-
-    // === DETAY A: KESICI UC ALIN GORUNUMU (Top Half) ===
-    const double cxA = 48.0;
-    final double cyA = size.y * 0.75;
-    const double rA = 24.0;
-
-    canvas.drawString(pdfFontBold, 7.5, 'DETAY A: KESICI UC ALIN (Z=$fluteCount)', 10, size.y - 12);
-    canvas.drawString(pdfFont, 6.5, 'Olcek 5:1 (Eksenel Bakis)', 10, size.y - 21);
-
-    // Outer Circle
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(1.0);
-    canvas.drawEllipse(cxA, cyA, rA, rA);
-    canvas.strokePath();
-
-    // Axes
-    canvas.setColor(PdfColors.grey400);
-    canvas.setLineWidth(0.5);
-    canvas.moveTo(cxA - rA - 5, cyA); canvas.lineTo(cxA + rA + 5, cyA);
-    canvas.moveTo(cxA, cyA - rA - 5); canvas.lineTo(cxA, cyA + rA + 5);
-    canvas.strokePath();
-
-    if (toolTipType == 'endmill') {
-      canvas.setColor(PdfColors.black);
-      canvas.setLineWidth(1.2);
-      for (int k = 0; k < fluteCount; k++) {
-        final double th = k * (2 * math.pi / fluteCount);
-        canvas.moveTo(cxA, cyA);
-        canvas.lineTo(cxA + rA * 0.95 * math.cos(th), cyA + rA * 0.95 * math.sin(th));
-        canvas.strokePath();
-      }
-      canvas.setFillColor(PdfColors.amber800);
-      canvas.drawEllipse(cxA, cyA, 2.2, 2.2); canvas.fillPath();
-
-      canvas.drawString(pdfFont, 6.5, '• Z = $fluteCount Duz Freze Alin', 85, cyA + 8);
-      canvas.drawString(pdfFont, 6.5, '• Alin Kesici Agizlar', 85, cyA - 2);
-      canvas.drawString(pdfFont, 6.5, '• Kose Pahi 45 deg', 85, cyA - 12);
-    } else if (fluteCount == 2) {
-      const double chiselAngle = 135.0 * math.pi / 180.0;
-      const double halfWeb = 3.2;
-      final double c1x = cxA - halfWeb * math.cos(chiselAngle);
-      final double c1y = cyA - halfWeb * math.sin(chiselAngle);
-      final double c2x = cxA + halfWeb * math.cos(chiselAngle);
-      final double c2y = cyA + halfWeb * math.sin(chiselAngle);
-
-      canvas.setColor(PdfColors.amber800);
-      canvas.setLineWidth(1.6);
-      canvas.moveTo(c1x, c1y); canvas.lineTo(c2x, c2y); canvas.strokePath();
-
-      canvas.setColor(PdfColors.blue800);
-      canvas.setLineWidth(1.4);
-      canvas.moveTo(c1x, c1y); canvas.lineTo(cxA - rA * 0.95, cyA - 2); canvas.strokePath();
-      canvas.moveTo(c2x, c2y); canvas.lineTo(cxA + rA * 0.95, cyA + 2); canvas.strokePath();
-
-      canvas.drawString(pdfFont, 6.5, '• 135° Split Point', 85, cyA + 10);
-      canvas.drawString(pdfFont, 6.5, '• Oz Kenar (Chisel): 135°', 85, cyA);
-      canvas.drawString(pdfFont, 6.5, '• Z = 2 Kesici Agizli', 85, cyA - 10);
-    } else {
-      canvas.setColor(PdfColors.blue800);
-      canvas.setLineWidth(1.4);
-      for (int k = 0; k < 3; k++) {
-        final double th = k * (2 * math.pi / 3);
-        final double lx = cxA + rA * 0.95 * math.cos(th);
-        final double ly = cyA + rA * 0.95 * math.sin(th);
-        canvas.moveTo(cxA, cyA); canvas.lineTo(lx, ly); canvas.strokePath();
-      }
-      canvas.setFillColor(PdfColors.amber800);
-      canvas.drawEllipse(cxA, cyA, 2.0, 2.0); canvas.fillPath();
-
-      canvas.drawString(pdfFont, 6.5, '• Z = 3 Piramit Uc', 85, cyA + 10);
-      canvas.drawString(pdfFont, 6.5, '• 120° Esit Aralikli', 85, cyA);
-      canvas.drawString(pdfFont, 6.5, '• Yuksek Dairesellik', 85, cyA - 10);
-    }
-
-    // === DETAY B: SAP BAGLANTISI (Bottom Half) ===
-    final double cyB = size.y * 0.25;
-    canvas.drawString(pdfFontBold, 7.5, 'DETAY B: SAP BAGLANTISI (${hasThreadedShank ? "VIDALI" : "DUZ"})', 10, size.y * 0.50 - 12);
-    canvas.drawString(pdfFont, 6.5, hasThreadedShank ? 'NAS 965 Tip D Havacilik' : 'DIN 6527 Silindirik', 10, size.y * 0.50 - 21);
-
-    if (hasThreadedShank) {
-      canvas.setColor(PdfColors.grey300);
-      canvas.drawRect(20, cyB - 14, 26, 28); canvas.fillPath();
-      canvas.setColor(PdfColors.black);
-      canvas.setLineWidth(1.0);
-      canvas.drawRect(20, cyB - 14, 26, 28); canvas.strokePath();
-      canvas.drawString(pdfFontBold, 6.5, 'HEX', 26, cyB - 2);
-
-      canvas.setColor(PdfColors.amber200);
-      canvas.drawRect(46, cyB - 11, 30, 22); canvas.fillPath();
-      canvas.setColor(PdfColors.amber900);
-      canvas.setLineWidth(1.0);
-      canvas.drawRect(46, cyB - 11, 30, 22); canvas.strokePath();
-      for (double tx = 50; tx < 74; tx += 3.5) {
-        canvas.moveTo(tx, cyB - 11); canvas.lineTo(tx + 2, cyB + 11); canvas.strokePath();
-      }
-
-      canvas.drawString(pdfFont, 6.5, '• 1/4"-28 UNF-2A Dis', 85, cyB + 8);
-      canvas.drawString(pdfFont, 6.5, '• 5/16" Somun Kafa', 85, cyB - 2);
-      canvas.drawString(pdfFont, 6.5, '• Cift 30° Pahli', 85, cyB - 12);
-    } else {
-      canvas.setColor(PdfColors.grey300);
-      canvas.drawRect(20, cyB - 14, 55, 28); canvas.fillPath();
-      canvas.setColor(PdfColors.black);
-      canvas.setLineWidth(1.0);
-      canvas.drawRect(20, cyB - 14, 55, 28); canvas.strokePath();
-      canvas.moveTo(75, cyB - 14); canvas.lineTo(79, cyB - 10);
-      canvas.lineTo(79, cyB + 10); canvas.lineTo(75, cyB + 14); canvas.strokePath();
-
-      canvas.drawString(pdfFont, 6.5, '• Sap: d2 (h6)', 85, cyB + 5);
-      canvas.drawString(pdfFont, 6.5, '• DIN 6527 Standardi', 85, cyB - 5);
-    }
-  }
-
-  // 3D Teknik Resim Etkileşimli Önizleme Modal Penceresi (In-App CAD Blueprint Viewer)
   void _show3DDrawingPreviewModal() {
     showDialog(
       context: context,
       builder: (BuildContext ctx) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          backgroundColor: const Color(0xFF0A0F17),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          backgroundColor: const Color(0xFF090D14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
           ),
           child: Container(
-            width: 1150,
-            constraints: const BoxConstraints(maxHeight: 820),
+            width: 1200,
+            constraints: const BoxConstraints(maxHeight: 880),
             child: Column(
               children: [
                 // Top CAD Header Bar
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   decoration: const BoxDecoration(
                     color: Color(0xFF111823),
                     borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
@@ -1393,12 +1855,12 @@ class _DrillTechnicalDrawingScreenState
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
                           color: const Color(0xFF00E5FF).withOpacity(0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.view_in_ar, color: Color(0xFF00E5FF), size: 22),
+                        child: const Icon(Icons.architecture, color: Color(0xFF00E5FF), size: 22),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1406,11 +1868,11 @@ class _DrillTechnicalDrawingScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              '3D TEKNİK İMALAT VE CAD ÇİZİM SAYFASI (ISO 13399 / NAS 965)',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
+                              '3D TEKNİK İMALAT VE CAD ÇİZİM ŞABLONU (DIN ISO 2768 / NAS 965)',
+                              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
                             ),
                             Text(
-                              'AIRCRAFT DWG • Z=$fluteCount Ağızlı Helis • ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']} (${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']})',
+                              'A4 Format 1:1 Ölçek • Z=$fluteCount Ağızlı • ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']} (${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}) • 15 Denetim Balonu',
                               style: const TextStyle(fontSize: 11, color: Color(0xFF00E5FF)),
                             ),
                           ],
@@ -1422,7 +1884,7 @@ class _DrillTechnicalDrawingScreenState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFFB300),
                           foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           elevation: 3,
                         ),
@@ -1441,221 +1903,84 @@ class _DrillTechnicalDrawingScreenState
                   ),
                 ),
 
-                // Blueprint Sheet Body
+                // Blueprint Workbench Viewport (Interactive Pan & Zoom)
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        // CAD Drawing Container (Main 3D Viewport)
-                        Container(
-                          height: 360,
-                          width: double.infinity,
+                  child: Container(
+                    color: const Color(0xFF0C1017),
+                    child: InteractiveViewer(
+                      minScale: 0.45,
+                      maxScale: 3.5,
+                      boundaryMargin: const EdgeInsets.all(120),
+                      child: Center(
+                        child: Container(
+                          width: 842,
+                          height: 595,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF070B12),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF1E293B), width: 1.5),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.65),
+                                blurRadius: 28,
+                                spreadRadius: 4,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Stack(
-                              children: [
-                                CustomPaint(
-                                  size: Size.infinite,
-                                  painter: Tool3DModelPainter(
-                                    rotX: rotX,
-                                    rotY: rotY,
-                                    rotZ: rotZ,
-                                    zoom: zoom3D,
-                                    isWireframe: is3DWireframe,
-                                    toolTipType: toolTipType,
-                                    pointAngle: pointAngle,
-                                    drillDiameter: drillDiameter,
-                                    totalLength: totalLength,
-                                    fluteLength: fluteLength,
-                                    reachLength: reachLength,
-                                    neckDiameter: neckDiameter,
-                                    shankDiameter: shankDiameter,
-                                    hasThreadedShank: hasThreadedShank,
-                                    threadLength: threadLength,
-                                    threadDiameter: threadDiameter,
-                                    hexLength: hexLength,
-                                    hexWidth: hexWidth,
-                                    coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
-                                    fluteCount: fluteCount,
-                                    show3DDimensions: true,
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 10,
-                                  left: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.7),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.white12),
-                                    ),
-                                    child: Text(
-                                      '3D CAD İZOMETRİK GÖRÜNÜM  |  Z=$fluteCount Ağızlı  |  Ölçek 1:1  |  Açı: ${(rotY * 180 / math.pi).toStringAsFixed(0)}°',
-                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF00E5FF), fontFamily: 'monospace', fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 10,
-                                  right: 12,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00E5FF).withOpacity(0.18),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
-                                        SizedBox(width: 4),
-                                        Text('ULTRA-HD 48-MESH PBR CAD', style: TextStyle(fontSize: 9.5, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                          child: CustomPaint(
+                            size: const Size(842, 595),
+                            painter: _EngineeringBlueprintPainter(
+                              drillDiameter: drillDiameter,
+                              shankDiameter: shankDiameter,
+                              neckDiameter: neckDiameter,
+                              fluteLength: fluteLength,
+                              reachLength: reachLength,
+                              totalLength: totalLength,
+                              pointAngle: pointAngle,
+                              fluteCount: fluteCount,
+                              toolTipType: toolTipType,
+                              hasThreadedShank: hasThreadedShank,
+                              threadLength: threadLength,
+                              threadDiameter: threadDiameter,
+                              hexLength: hexLength,
+                              hexWidth: hexWidth,
+                              materialName: toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name'] as String,
+                              materialHardness: toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness'] as String,
+                              coatingName: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name'] as String,
+                              coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 14),
-
-                        // Lower Row: Detail Views & ISO 13399 Table & Title Block
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Detail A & Detail B Views
-                            Expanded(
-                              flex: 4,
-                              child: Container(
-                                height: 210,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0D131C),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFF1E293B)),
-                                ),
-                                child: CustomPaint(
-                                  painter: _DetailViews2DPainter(
-                                    drillDiameter: drillDiameter,
-                                    shankDiameter: shankDiameter,
-                                    toolTipType: toolTipType,
-                                    pointAngle: pointAngle,
-                                    fluteCount: fluteCount,
-                                    hasThreadedShank: hasThreadedShank,
-                                    threadLength: threadLength,
-                                    hexLength: hexLength,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // ISO 13399 Dimension Table & Title Block
-                            Expanded(
-                              flex: 6,
-                              child: Container(
-                                height: 210,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0D131C),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFF1E293B)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    const Text(
-                                      'ISO 13399 / DIN 4000 HAVACILIK STANDART ÖLÇÜ MATRİSİ',
-                                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFFFFB300), letterSpacing: 0.5),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Table(
-                                      border: TableBorder.all(color: const Color(0xFF1E293B)),
-                                      columnWidths: const {
-                                        0: FlexColumnWidth(1.0),
-                                        1: FlexColumnWidth(1.0),
-                                        2: FlexColumnWidth(1.0),
-                                        3: FlexColumnWidth(1.0),
-                                        4: FlexColumnWidth(1.0),
-                                        5: FlexColumnWidth(1.0),
-                                      },
-                                      children: [
-                                        TableRow(
-                                          decoration: const BoxDecoration(color: Color(0xFF16202E)),
-                                          children: [
-                                            _buildTableCell('d1 (h9)', isHeader: true),
-                                            _buildTableCell('d2 (h6)', isHeader: true),
-                                            _buildTableCell('d3 (Boyun)', isHeader: true),
-                                            _buildTableCell('l2 (Kesme)', isHeader: true),
-                                            _buildTableCell('l3 (Reach)', isHeader: true, isHighlight: true),
-                                            _buildTableCell('l1 (Tam)', isHeader: true),
-                                          ],
-                                        ),
-                                        TableRow(
-                                          children: [
-                                            _buildTableCell('${drillDiameter.toStringAsFixed(2)} mm\n[${(drillDiameter / 25.4).toStringAsFixed(4)}"]'),
-                                            _buildTableCell('${shankDiameter.toStringAsFixed(2)} mm\n[${(shankDiameter / 25.4).toStringAsFixed(3)}"]'),
-                                            _buildTableCell('${neckDiameter.toStringAsFixed(2)} mm'),
-                                            _buildTableCell('${fluteLength.toStringAsFixed(1)} mm\n[${(fluteLength / 25.4).toStringAsFixed(3)}"]'),
-                                            _buildTableCell('${reachLength.toStringAsFixed(1)} mm\n[${(reachLength / 25.4).toStringAsFixed(3)}"]', isHighlight: true),
-                                            _buildTableCell('${totalLength.toStringAsFixed(1)} mm\n[${(totalLength / 25.4).toStringAsFixed(3)}"]'),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    const Spacer(),
-                                    // Engineering Title Block (Antet)
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF131B26),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: const Color(0xFF232E3E)),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text('DWG: AERO-3D-${drillDiameter.toStringAsFixed(2)}mm-Z$fluteCount', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
-                                              Text('STANDART: ${hasThreadedShank ? "NAS 965 TIP D (1/4\"-28)" : "DIN 6527"}', style: const TextStyle(fontSize: 8.5, color: Colors.white70)),
-                                            ],
-                                          ),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text('MALZEME: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: const TextStyle(fontSize: 9, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                                              Text('KAPLAMA: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name'].toString().split(' ')[0]}', style: const TextStyle(fontSize: 8.5, color: Colors.white70)),
-                                            ],
-                                          ),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.end,
-                                            children: [
-                                              const Text('PROJEKSIYON: 1. AÇI (ISO)', style: TextStyle(fontSize: 8.5, color: Colors.white60)),
-                                              Text('REV: 3D-01 | TARIH: ${DateTime.now().toString().substring(0, 10)}', style: const TextStyle(fontSize: 8, color: Colors.white60)),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
+                  ),
+                ),
+
+                // Bottom Status Bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF111823),
+                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(16), bottomRight: Radius.circular(16)),
+                    border: Border(top: BorderSide(color: Color(0xFF1E293B))),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.touch_app, size: 14, color: Colors.white54),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'İpucu: Çizimi incelemek için fare tekerleğiyle yakınlaştırıp (zoom) kaydırabilirsiniz (pan).',
+                        style: TextStyle(fontSize: 11, color: Colors.white60),
+                      ),
+                      const Spacer(),
+                      _buildBlueprintBadge('15 DENETİM BALONU', const Color(0xFF2979FF)),
+                      const SizedBox(width: 8),
+                      _buildBlueprintBadge('DIN ISO 2768-m', Colors.white70),
+                      const SizedBox(width: 8),
+                      _buildBlueprintBadge(hasThreadedShank ? 'NAS 965 TIP D' : 'DIN 6527', const Color(0xFFFFB300)),
+                      const SizedBox(width: 8),
+                      _buildBlueprintBadge('Z = $fluteCount KESİCİ AĞIZ', const Color(0xFF00E5FF)),
+                    ],
                   ),
                 ),
               ],
@@ -1666,17 +1991,17 @@ class _DrillTechnicalDrawingScreenState
     );
   }
 
-  Widget _buildTableCell(String text, {bool isHeader = false, bool isHighlight = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+  Widget _buildBlueprintBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.4), width: 1.0),
+      ),
       child: Text(
         text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: isHeader ? 8.5 : 8.0,
-          fontWeight: (isHeader || isHighlight) ? FontWeight.bold : FontWeight.normal,
-          color: isHighlight ? const Color(0xFFFF5252) : (isHeader ? Colors.white : Colors.white70),
-        ),
+        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: color),
       ),
     );
   }
@@ -5169,135 +5494,718 @@ class Tool3DModelPainter extends CustomPainter {
 // MODAL DETAY GÖRÜNÜM ÇİZİCİSİ (Detail A & Detail B 2D Painter)
 // =============================================================================
 
-class _DetailViews2DPainter extends CustomPainter {
+// =============================================================================
+// DIN EN ISO 2768 / NAS 965 MÜHENDİSLİK TEKNİK RESİM ÇİZİCİSİ (FLUTTER CANVAS)
+// =============================================================================
+
+class _EngineeringBlueprintPainter extends CustomPainter {
   final double drillDiameter;
   final double shankDiameter;
-  final String toolTipType;
+  final double neckDiameter;
+  final double fluteLength;
+  final double reachLength;
+  final double totalLength;
   final double pointAngle;
   final int fluteCount;
+  final String toolTipType;
   final bool hasThreadedShank;
   final double threadLength;
+  final double threadDiameter;
   final double hexLength;
+  final double hexWidth;
+  final String materialName;
+  final String materialHardness;
+  final String coatingName;
+  final Color coatingColor;
 
-  _DetailViews2DPainter({
+  _EngineeringBlueprintPainter({
     required this.drillDiameter,
     required this.shankDiameter,
-    required this.toolTipType,
+    required this.neckDiameter,
+    required this.fluteLength,
+    required this.reachLength,
+    required this.totalLength,
     required this.pointAngle,
     required this.fluteCount,
+    required this.toolTipType,
     required this.hasThreadedShank,
     required this.threadLength,
+    required this.threadDiameter,
     required this.hexLength,
+    required this.hexWidth,
+    required this.materialName,
+    required this.materialHardness,
+    required this.coatingName,
+    required this.coatingColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Top Half: Detay A (Kesici Uç Alın Görünümü)
-    final double midY = size.height * 0.50;
-    final dividerPaint = Paint()..color = const Color(0xFF1E293B)..strokeWidth = 1.2;
-    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), dividerPaint);
+    // 1. Çift Kenarlık (Dual Border) ve 4 Merkezleme Çeltiği
+    _drawCanvasBlueprintBorders(canvas, size);
 
-    const double cxA = 52.0;
-    final double cyA = size.height * 0.25;
-    const double rA = 30.0;
+    // 2. Ana 2D Boyuna Kesici Takım Görünüşü (Merkez-Sol & Üst)
+    _drawCanvasMainToolView(canvas, size);
 
-    // Outer Circle
-    canvas.drawCircle(Offset(cxA, cyA), rA, Paint()..color = const Color(0xFF16202E));
-    canvas.drawCircle(Offset(cxA, cyA), rA, Paint()..color = const Color(0xFF00E5FF)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+    // 3. Kesici Uç Alın Görünüşü (Sağ Üst, 4:1)
+    _drawCanvasAxialView(canvas, size);
 
-    // Axes
-    final axisP = Paint()..color = Colors.white24..strokeWidth = 0.8;
-    canvas.drawLine(Offset(cxA - rA - 8, cyA), Offset(cxA + rA + 8, cyA), axisP);
-    canvas.drawLine(Offset(cxA, cyA - rA - 8), Offset(cxA, cyA + rA + 8), axisP);
+    // 4. Detay C: DIN 509 Boşaltma Kanalı (Sağ Orta, 4:1)
+    _drawCanvasDetailC(canvas, size);
 
-    if (toolTipType == 'endmill') {
-      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
-      for (int k = 0; k < fluteCount; k++) {
-        final double th = k * (2 * math.pi / fluteCount);
-        canvas.drawLine(Offset(cxA, cyA), Offset(cxA + rA * 0.95 * math.cos(th), cyA + rA * 0.95 * math.sin(th)), lipP);
-      }
-      canvas.drawCircle(Offset(cxA, cyA), 3.2, Paint()..color = const Color(0xFFFFB300));
-      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=$fluteCount)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
-      _drawText(canvas, '• Düz Tabanlı Freze (180° Alın)', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• Z = $fluteCount Ağızlı Alın Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• 45° Köşe Koruma Pahı', Offset(105, cyA + 20), const Color(0xFFFFB300), fontSize: 9.5);
-    } else if (fluteCount == 2) {
-      const double chiselAngle = 135.0 * math.pi / 180.0;
-      const double halfWeb = 3.8;
-      final double c1x = cxA - halfWeb * math.cos(chiselAngle);
-      final double c1y = cyA - halfWeb * math.sin(chiselAngle);
-      final double c2x = cxA + halfWeb * math.cos(chiselAngle);
-      final double c2y = cyA + halfWeb * math.sin(chiselAngle);
+    // 5. Kesit A-A: Boyuna Kesit ve 45° Tarama Çizgileri (Sol Alt, 1:1)
+    _drawCanvasSectionA(canvas, size);
 
-      // Chisel Edge
-      canvas.drawLine(Offset(c1x, c1y), Offset(c2x, c2y), Paint()..color = const Color(0xFFFFB300)..strokeWidth = 3.0);
-      // Lips
-      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
-      canvas.drawLine(Offset(c1x, c1y), Offset(cxA - rA * 0.95, cyA - 4), lipP);
-      canvas.drawLine(Offset(c2x, c2y), Offset(cxA + rA * 0.95, cyA + 4), lipP);
+    // 6. 3D İzometrik Shaded CAD Modeli Bölgesi (Orta Alt)
+    _drawCanvas3DModelZone(canvas, size);
 
-      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=2)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
-      _drawText(canvas, '• 135° Split Point Çapraz Bileme', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• Öz Kenar (Chisel Edge): 135° Açılı', Offset(105, cyA + 4), const Color(0xFFFFB300), fontSize: 9.5);
-      _drawText(canvas, '• 2 Ağızlı Karşılıklı 180° Helis', Offset(105, cyA + 20), Colors.white70, fontSize: 9.5);
-    } else {
-      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
-      for (int k = 0; k < 3; k++) {
-        final double th = k * (2 * math.pi / 3);
-        final double lx = cxA + rA * 0.95 * math.cos(th);
-        final double ly = cyA + rA * 0.95 * math.sin(th);
-        canvas.drawLine(Offset(cxA, cyA), Offset(lx, ly), lipP);
-      }
-      canvas.drawCircle(Offset(cxA, cyA), 3.0, Paint()..color = const Color(0xFFFFB300));
+    // 7. Genel İmalat Notları ve Genel Yüzey Pürüzlülüğü Sembolü (Antet Üstü)
+    _drawCanvasGeneralNotesAndRoughness(canvas, size);
 
-      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=3)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
-      _drawText(canvas, '• Z = 3 Ağızlı Piramit Merkez Uç', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• 120° Eşit Açılı Kesici Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• Üstün Rijitlik ve Dairesellik', Offset(105, cyA + 20), const Color(0xFFFFB300), fontSize: 9.5);
-    }
-
-    // Bottom Half: Detay B (Sap Bağlantısı)
-    final double cyB = size.height * 0.75;
-    if (hasThreadedShank) {
-      final hexR = Rect.fromCenter(center: Offset(38, cyB), width: 32, height: 32);
-      canvas.drawRect(hexR, Paint()..color = const Color(0xFF2C3947));
-      canvas.drawRect(hexR, Paint()..color = const Color(0xFF94A3B8)..style = PaintingStyle.stroke..strokeWidth = 1.5);
-      _drawText(canvas, '5/16"', Offset(29, cyB - 6), Colors.white, isBold: true, fontSize: 8.5);
-
-      final thR = Rect.fromCenter(center: Offset(70, cyB), width: 32, height: 24);
-      canvas.drawRect(thR, Paint()..color = const Color(0xFF3E2D12));
-      canvas.drawRect(thR, Paint()..color = const Color(0xFFFFB300)..style = PaintingStyle.stroke..strokeWidth = 1.5);
-      for (double tx = 58; tx < 84; tx += 4) {
-        canvas.drawLine(Offset(tx, cyB - 12), Offset(tx + 2, cyB + 12), Paint()..color = const Color(0xFFFFB300)..strokeWidth = 1.0);
-      }
-
-      _drawText(canvas, 'DETAY B: VIDALI SAP BAĞLANTISI', Offset(105, cyB - 28), const Color(0xFFFFB300), isBold: true, fontSize: 10.5);
-      _drawText(canvas, '• Standart: NAS 965 Tip D Havacılık', Offset(105, cyB - 12), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• Diş: 1/4"-28 UNF-2A (60° V-Profili)', Offset(105, cyB + 4), const Color(0xFFFFB300), fontSize: 9.5);
-      _drawText(canvas, '• Kafa: 5/16" (7.94 mm) 6-Gen Somun', Offset(105, cyB + 20), Colors.white70, fontSize: 9.5);
-    } else {
-      final shR = Rect.fromCenter(center: Offset(50, cyB), width: 56, height: 30);
-      canvas.drawRect(shR, Paint()..color = const Color(0xFF2C3947));
-      canvas.drawRect(shR, Paint()..color = const Color(0xFF94A3B8)..style = PaintingStyle.stroke..strokeWidth = 1.5);
-      canvas.drawLine(Offset(74, cyB - 15), Offset(78, cyB - 10), Paint()..color = Colors.white..strokeWidth = 1.2);
-      canvas.drawLine(Offset(78, cyB - 10), Offset(78, cyB + 10), Paint()..color = Colors.white..strokeWidth = 1.2);
-      canvas.drawLine(Offset(78, cyB + 10), Offset(74, cyB + 15), Paint()..color = Colors.white..strokeWidth = 1.2);
-
-      _drawText(canvas, 'DETAY B: SİLİNDİRİK SAP BAĞLANTISI', Offset(105, cyB - 24), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
-      _drawText(canvas, '• Standart: DIN 6527 / ISO 13399', Offset(105, cyB - 8), Colors.white70, fontSize: 9.5);
-      _drawText(canvas, '• Sap Toleransı: d2 (h6 Taşlanmış)', Offset(105, cyB + 8), const Color(0xFF00E5FF), fontSize: 9.5);
-      _drawText(canvas, '• Uçta 45° Havşa Pahı Kırılmış', Offset(105, cyB + 24), Colors.white70, fontSize: 9.5);
-    }
-  }
-
-  void _drawText(Canvas canvas, String text, Offset pos, Color color, {bool isBold = false, double fontSize = 10}) {
-    final span = TextSpan(text: text, style: TextStyle(color: color, fontSize: fontSize, fontWeight: isBold ? FontWeight.bold : FontWeight.normal));
-    final tp = TextPainter(text: span, textDirection: TextDirection.ltr)..layout();
-    tp.paint(canvas, pos);
+    // 8. DIN / ISO Mühendislik Anteti (Sağ Alt Köşe)
+    _drawCanvasTitleBlock(canvas, size);
   }
 
   @override
-  bool shouldRepaint(covariant _DetailViews2DPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _EngineeringBlueprintPainter oldDelegate) => true;
+
+  // ---------------------------------------------------------------------------
+  // YARDIMCI ÇİZİM FONKSİYONLARI (CANVAS)
+  // ---------------------------------------------------------------------------
+
+  void _drawCanvasText(
+    Canvas canvas,
+    String text,
+    Offset offset, {
+    double fontSize = 8.0,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = Colors.black,
+    TextAlign align = TextAlign.left,
+    double? maxWidth,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          color: color,
+          fontFamily: 'monospace',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+    )..layout(maxWidth: maxWidth ?? double.infinity);
+    tp.paint(canvas, offset);
+  }
+
+  void _drawCanvasInspectionBalloon(Canvas canvas, Offset center, int number) {
+    const double r = 7.0;
+    final bgP = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawCircle(center, r, bgP);
+    final borderP = Paint()
+      ..color = const Color(0xFF2979FF)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(center, r, borderP);
+    final double xOff = (number >= 10) ? 4.5 : 2.5;
+    _drawCanvasText(
+      canvas,
+      '$number',
+      Offset(center.dx - xOff, center.dy - 4.5),
+      fontSize: 7.5,
+      fontWeight: FontWeight.bold,
+      color: const Color(0xFF2979FF),
+    );
+  }
+
+  void _drawCanvasArrow(Canvas canvas, Offset tip, Offset dir, Color color, {double size = 4.5, double width = 2.0}) {
+    final double len = dir.distance;
+    if (len < 0.001) return;
+    final Offset u = dir / len;
+    final Offset norm = Offset(-u.dy, u.dx);
+    final Offset p1 = tip - u * size + norm * width;
+    final Offset p2 = tip - u * size - norm * width;
+    final path = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
+  }
+
+  void _drawCanvasChainLine(Canvas canvas, Offset p1, Offset p2, {Color color = const Color(0xFF616161), double width = 0.6}) {
+    final paint = Paint()..color = color..strokeWidth = width..style = PaintingStyle.stroke;
+    final double dx = p2.dx - p1.dx;
+    final double dy = p2.dy - p1.dy;
+    final double len = math.sqrt(dx * dx + dy * dy);
+    if (len < 1.0) return;
+    final double ux = dx / len;
+    final double uy = dy / len;
+    double dist = 0.0;
+    while (dist < len) {
+      final double seg1 = math.min(12.0, len - dist);
+      canvas.drawLine(Offset(p1.dx + ux * dist, p1.dy + uy * dist), Offset(p1.dx + ux * (dist + seg1), p1.dy + uy * (dist + seg1)), paint);
+      dist += seg1 + 3.0;
+      if (dist >= len) break;
+      final double seg2 = math.min(2.0, len - dist);
+      canvas.drawLine(Offset(p1.dx + ux * dist, p1.dy + uy * dist), Offset(p1.dx + ux * (dist + seg2), p1.dy + uy * (dist + seg2)), paint);
+      dist += seg2 + 3.0;
+    }
+  }
+
+  void _drawCanvasGdtFrame(Canvas canvas, Offset pos, String symbol, String tol, String datum) {
+    final p = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    canvas.drawRect(Rect.fromLTWH(pos.dx, pos.dy, 44, 12), p);
+    canvas.drawLine(Offset(pos.dx + 13, pos.dy), Offset(pos.dx + 13, pos.dy + 12), p);
+    canvas.drawLine(Offset(pos.dx + 31, pos.dy), Offset(pos.dx + 31, pos.dy + 12), p);
+    _drawCanvasText(canvas, symbol, Offset(pos.dx + 3, pos.dy + 2), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, tol, Offset(pos.dx + 15, pos.dy + 2), fontSize: 7.0);
+    _drawCanvasText(canvas, datum, Offset(pos.dx + 34, pos.dy + 2), fontSize: 7.5, fontWeight: FontWeight.bold);
+  }
+
+  void _drawCanvasDatumMarker(Canvas canvas, Offset pos, String label) {
+    final p = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    canvas.drawRect(Rect.fromLTWH(pos.dx - 6, pos.dy - 6, 12, 12), p);
+    _drawCanvasText(canvas, label, Offset(pos.dx - 3, pos.dy - 4.5), fontSize: 7.5, fontWeight: FontWeight.bold);
+  }
+
+  void _drawCanvasSurfaceFinish(Canvas canvas, Offset pos, String raVal) {
+    final p = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    final path = Path()
+      ..moveTo(pos.dx - 3, pos.dy - 6)
+      ..lineTo(pos.dx, pos.dy)
+      ..lineTo(pos.dx + 5, pos.dy - 11)
+      ..lineTo(pos.dx + 17, pos.dy - 11);
+    canvas.drawPath(path, p);
+    _drawCanvasText(canvas, raVal, Offset(pos.dx + 6, pos.dy - 11), fontSize: 6.5);
+  }
+
+  void _drawCanvasBlueprintBorders(Canvas canvas, Size size) {
+    final thinP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    canvas.drawRect(const Rect.fromLTWH(14, 14, 814, 567), thinP);
+
+    final boldP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.8;
+    canvas.drawRect(const Rect.fromLTWH(24, 24, 794, 547), boldP);
+
+    final tickP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    // 4 Kenar Merkezleme Çeltikleri
+    canvas.drawLine(const Offset(421, 14), const Offset(421, 24), tickP);
+    canvas.drawLine(const Offset(421, 581), const Offset(421, 571), tickP);
+    canvas.drawLine(const Offset(14, 297.5), const Offset(24, 297.5), tickP);
+    canvas.drawLine(const Offset(828, 297.5), const Offset(818, 297.5), tickP);
+  }
+
+  void _drawCanvasMainToolView(Canvas canvas, Size size) {
+    const double cy = 150.0;
+
+    // 1. Eksen Çizgisi
+    _drawCanvasChainLine(canvas, const Offset(42, cy), const Offset(525, cy));
+
+    final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    const double xTip = 80.0;
+    const double r1 = 18.0;
+    const double r3 = 14.5;
+    const double r2 = 18.0;
+    final double lPt = isEndMill ? 3.0 : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(6.0, 18.0);
+    final double xFluteStart = xTip + lPt;
+    const double xFluteEnd = 220.0;
+    const double xNeckEnd = 295.0;
+    const double xShankEnd = 375.0;
+    const double xHexEnd = 410.0;
+    const double xThreadEnd = 475.0;
+
+    final bodyP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+
+    if (isEndMill) {
+      canvas.drawLine(const Offset(xTip, cy - 15), const Offset(xTip, cy + 15), bodyP);
+      canvas.drawLine(const Offset(xTip, cy - 15), const Offset(xTip + 3, cy - r1), bodyP);
+      canvas.drawLine(const Offset(xTip, cy + 15), const Offset(xTip + 3, cy + r1), bodyP);
+      final dishPath = Path()
+        ..moveTo(xTip, cy - 4)
+        ..lineTo(xTip + 1.5, cy)
+        ..lineTo(xTip, cy + 4);
+      canvas.drawPath(dishPath, bodyP);
+    } else {
+      canvas.drawLine(const Offset(xTip, cy), Offset(xFluteStart, cy - r1), bodyP);
+      canvas.drawLine(const Offset(xTip, cy), Offset(xFluteStart, cy + r1), bodyP);
+      canvas.drawLine(const Offset(xTip, cy - 2), const Offset(xTip, cy + 2), bodyP);
+    }
+
+    // Helis Gövde Dış Kenarları
+    canvas.drawLine(Offset(xFluteStart, cy - r1), const Offset(xFluteEnd, cy - r1), bodyP);
+    canvas.drawLine(Offset(xFluteStart, cy + r1), const Offset(xFluteEnd, cy + r1), bodyP);
+
+    // Zırh Payı Çizgileri
+    final marginP = Paint()..color = const Color(0xFF424242)..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    canvas.drawLine(Offset(xFluteStart, cy - r1 + 1.6), const Offset(xFluteEnd, cy - r1 + 1.6), marginP);
+    canvas.drawLine(Offset(xFluteStart, cy + r1 - 1.6), const Offset(xFluteEnd, cy + r1 - 1.6), marginP);
+
+    // Helis Dalgaları (Spiral Flute Lands)
+    final fluteWaveP = Paint()..color = const Color(0xFF212121)..style = PaintingStyle.stroke..strokeWidth = 0.9;
+    for (int k = 0; k < 4; k++) {
+      final double sx = xFluteStart + 12 + k * 28;
+      final wavePath = Path()
+        ..moveTo(sx, cy - r1)
+        ..cubicTo(sx + 8, cy - 6, sx + 12, cy + 6, sx + 20, cy + r1);
+      canvas.drawPath(wavePath, fluteWaveP);
+    }
+
+    // Boyun Boşaltması (Neck Transition d3)
+    final neckPathTop = Path()
+      ..moveTo(xFluteEnd, cy - r1)
+      ..cubicTo(xFluteEnd + 5, cy - r3, xFluteEnd + 6, cy - r3, xFluteEnd + 10, cy - r3)
+      ..lineTo(xNeckEnd - 10, cy - r3)
+      ..cubicTo(xNeckEnd - 6, cy - r3, xNeckEnd - 5, cy - r2, xNeckEnd, cy - r2);
+    canvas.drawPath(neckPathTop, bodyP);
+
+    final neckPathBottom = Path()
+      ..moveTo(xFluteEnd, cy + r1)
+      ..cubicTo(xFluteEnd + 5, cy + r3, xFluteEnd + 6, cy + r3, xFluteEnd + 10, cy + r3)
+      ..lineTo(xNeckEnd - 10, cy + r3)
+      ..cubicTo(xNeckEnd - 6, cy + r3, xNeckEnd - 5, cy + r2, xNeckEnd, cy + r2);
+    canvas.drawPath(neckPathBottom, bodyP);
+
+    // Silindirik Sap Gövdesi
+    canvas.drawLine(const Offset(xNeckEnd, cy - r2), const Offset(xShankEnd, cy - r2), bodyP);
+    canvas.drawLine(const Offset(xNeckEnd, cy + r2), const Offset(xShankEnd, cy + r2), bodyP);
+
+    if (hasThreadedShank) {
+      // Somun Kafa (Hex Collar)
+      const double rHex = 22.0;
+      final hexCollarP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+      // Düz Alın Faturası (Washer collar face - sapa 90° dik)
+      canvas.drawLine(const Offset(xShankEnd, cy - rHex), const Offset(xShankEnd, cy + rHex), hexCollarP);
+      canvas.drawLine(const Offset(xShankEnd, cy - rHex), const Offset(xHexEnd, cy - rHex), hexCollarP);
+      canvas.drawLine(const Offset(xShankEnd, cy + rHex), const Offset(xHexEnd, cy + rHex), hexCollarP);
+      canvas.drawLine(const Offset(xHexEnd, cy - rHex), const Offset(xHexEnd, cy + rHex), hexCollarP);
+
+      // Faset çizgileri
+      final facetP = Paint()..color = const Color(0xFF616161)..style = PaintingStyle.stroke..strokeWidth = 0.8;
+      canvas.drawLine(const Offset(xShankEnd, cy - 11.5), const Offset(xHexEnd, cy - 11.5), facetP);
+      canvas.drawLine(const Offset(xShankEnd, cy + 11.5), const Offset(xHexEnd, cy + 11.5), facetP);
+
+      // Boşaltma Kanalı (Detail C: Undercut)
+      const double xUndercut = 417.0;
+      canvas.drawLine(const Offset(xHexEnd, cy - 14), const Offset(xUndercut, cy - 14), bodyP);
+      canvas.drawLine(const Offset(xHexEnd, cy + 14), const Offset(xUndercut, cy + 14), bodyP);
+
+      // Vidalı Sap Bölümü
+      const double rThCrest = 17.0;
+      const double rThRoot = 14.5;
+      canvas.drawLine(const Offset(xUndercut, cy - rThCrest), const Offset(xThreadEnd - 3, cy - rThCrest), bodyP);
+      canvas.drawLine(const Offset(xUndercut, cy + rThCrest), const Offset(xThreadEnd - 3, cy + rThCrest), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd - 3, cy + rThCrest), const Offset(xThreadEnd, cy + rThCrest - 3), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd, cy + rThCrest - 3), const Offset(xThreadEnd, cy - rThCrest + 3), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd, cy - rThCrest + 3), const Offset(xThreadEnd - 3, cy - rThCrest), bodyP);
+
+      // Diş Dibi Kesik Çizgileri
+      final rootP = Paint()..color = const Color(0xFF616161)..style = PaintingStyle.stroke..strokeWidth = 0.7;
+      canvas.drawLine(const Offset(xUndercut, cy - rThRoot), const Offset(xThreadEnd - 3, cy - rThRoot), rootP);
+      canvas.drawLine(const Offset(xUndercut, cy + rThRoot), const Offset(xThreadEnd - 3, cy + rThRoot), rootP);
+
+      // Diş sırt çizgileri
+      for (double tx = xUndercut + 2.5; tx < xThreadEnd - 3; tx += 3.2) {
+        canvas.drawLine(Offset(tx, cy - rThCrest), Offset(tx + 1.2, cy + rThCrest), rootP);
+      }
+    } else {
+      // Düz Sap ve Pah
+      canvas.drawLine(const Offset(xShankEnd, cy - r2), const Offset(xThreadEnd - 3, cy - r2), bodyP);
+      canvas.drawLine(const Offset(xShankEnd, cy + r2), const Offset(xThreadEnd - 3, cy + r2), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd - 3, cy + r2), const Offset(xThreadEnd, cy + r2 - 3), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd, cy + r2 - 3), const Offset(xThreadEnd, cy - r2 + 3), bodyP);
+      canvas.drawLine(const Offset(xThreadEnd, cy - r2 + 3), const Offset(xThreadEnd - 3, cy - r2), bodyP);
+    }
+
+    // =========================================================================
+    // ÖLÇÜLER VE DENETİM BALONLARI (1 - 10)
+    // =========================================================================
+    final dimP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.7;
+
+    // (1) d1 (h9)
+    canvas.drawLine(const Offset(xTip, cy - r1), const Offset(52, cy - r1), dimP);
+    canvas.drawLine(const Offset(xTip, cy + r1), const Offset(52, cy + r1), dimP);
+    canvas.drawLine(const Offset(56, cy - r1), const Offset(56, cy + r1), dimP);
+    _drawCanvasArrow(canvas, const Offset(56, cy - r1), const Offset(0, -1), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(56, cy + r1), const Offset(0, 1), Colors.black);
+    _drawCanvasText(canvas, 'd1 = ${drillDiameter.toStringAsFixed(2)} h9', const Offset(32, cy - 2), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(38, cy - 14), 1);
+
+    // (2) l2 (±0.1)
+    canvas.drawLine(const Offset(xTip, cy - r1), const Offset(xTip, 85), dimP);
+    canvas.drawLine(const Offset(xFluteEnd, cy - r1), const Offset(xFluteEnd, 85), dimP);
+    canvas.drawLine(const Offset(xTip, 89), const Offset(xFluteEnd, 89), dimP);
+    _drawCanvasArrow(canvas, const Offset(xTip, 89), const Offset(-1, 0), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(xFluteEnd, 89), const Offset(1, 0), Colors.black);
+    _drawCanvasText(canvas, 'l2 = ${fluteLength.toStringAsFixed(1)} +/-0.1', const Offset(125, 80), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(150, 72), 2);
+
+    // (3) l3 (±0.2)
+    canvas.drawLine(const Offset(xNeckEnd, cy - r3), const Offset(xNeckEnd, 68), dimP);
+    canvas.drawLine(const Offset(xTip, 85), const Offset(xTip, 68), dimP);
+    canvas.drawLine(const Offset(xTip, 72), const Offset(xNeckEnd, 72), dimP);
+    _drawCanvasArrow(canvas, const Offset(xTip, 72), const Offset(-1, 0), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(xNeckEnd, 72), const Offset(1, 0), Colors.black);
+    _drawCanvasText(canvas, 'l3 = ${reachLength.toStringAsFixed(1)} +/-0.2', const Offset(170, 63), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(205, 56), 3);
+
+    // (4) d3 (±0.1)
+    const double xDimNeck = 258.0;
+    canvas.drawLine(const Offset(xDimNeck, cy - r3), const Offset(xDimNeck, cy + r3), dimP);
+    _drawCanvasArrow(canvas, const Offset(xDimNeck, cy - r3), const Offset(0, -1), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(xDimNeck, cy + r3), const Offset(0, 1), Colors.black);
+    _drawCanvasText(canvas, 'd3 = ${neckDiameter.toStringAsFixed(2)}', const Offset(xDimNeck - 18, cy - 2), fontSize: 7.0);
+    _drawCanvasInspectionBalloon(canvas, const Offset(xDimNeck, 118), 4);
+
+    // (5) d2 (h6)
+    const double xDimShank = 338.0;
+    canvas.drawLine(const Offset(xDimShank, cy - r2), const Offset(xDimShank, cy + r2), dimP);
+    _drawCanvasArrow(canvas, const Offset(xDimShank, cy - r2), const Offset(0, -1), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(xDimShank, cy + r2), const Offset(0, 1), Colors.black);
+    _drawCanvasText(canvas, 'd2 = ${shankDiameter.toStringAsFixed(2)} h6', const Offset(xDimShank - 22, cy - 2), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(xDimShank, 118), 5);
+
+    // (6) l1 (±0.2)
+    canvas.drawLine(const Offset(xTip, cy + r1), const Offset(xTip, 218), dimP);
+    canvas.drawLine(const Offset(xThreadEnd, cy + 14), const Offset(xThreadEnd, 218), dimP);
+    canvas.drawLine(const Offset(xTip, 214), const Offset(xThreadEnd, 214), dimP);
+    _drawCanvasArrow(canvas, const Offset(xTip, 214), const Offset(-1, 0), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(xThreadEnd, 214), const Offset(1, 0), Colors.black);
+    _drawCanvasText(canvas, 'l1 = ${totalLength.toStringAsFixed(1)} +/-0.2 (TAM BOY)', const Offset(230, 205), fontSize: 8.0, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(275, 228), 6);
+
+    // (7) Vidalı Sap Çağrısı
+    if (hasThreadedShank) {
+      canvas.drawLine(const Offset(445, cy - 17), const Offset(465, 105), dimP);
+      canvas.drawLine(const Offset(465, 105), const Offset(515, 105), dimP);
+      _drawCanvasArrow(canvas, const Offset(445, cy - 17), const Offset(-1, 1), Colors.black, size: 3.5);
+      _drawCanvasText(canvas, '1/4"-28 UNF-2A Diş', const Offset(466, 96), fontSize: 7.0, fontWeight: FontWeight.bold);
+      _drawCanvasInspectionBalloon(canvas, const Offset(525, 105), 7);
+
+      // (8) Altıköşe Somun Kafa
+      canvas.drawLine(const Offset(392, cy - 22), const Offset(405, 95), dimP);
+      canvas.drawLine(const Offset(405, 95), const Offset(440, 95), dimP);
+      _drawCanvasArrow(canvas, const Offset(392, cy - 22), const Offset(-1, 1), Colors.black, size: 3.5);
+      _drawCanvasText(canvas, '5/16" SW Somun', const Offset(406, 86), fontSize: 7.0, fontWeight: FontWeight.bold);
+      _drawCanvasInspectionBalloon(canvas, const Offset(450, 95), 8);
+    } else {
+      canvas.drawLine(const Offset(470, cy - r2), const Offset(485, 105), dimP);
+      canvas.drawLine(const Offset(485, 105), const Offset(525, 105), dimP);
+      _drawCanvasArrow(canvas, const Offset(470, cy - r2), const Offset(-1, 1), Colors.black, size: 3.5);
+      _drawCanvasText(canvas, 'DIN 6527 1x45° Pah', const Offset(486, 96), fontSize: 7.0, fontWeight: FontWeight.bold);
+      _drawCanvasInspectionBalloon(canvas, const Offset(535, 105), 7);
+    }
+
+    // (9) Uç Açısı
+    canvas.drawLine(const Offset(xTip + 2, cy - 6), const Offset(60, 115), dimP);
+    canvas.drawLine(const Offset(60, 115), const Offset(42, 115), dimP);
+    _drawCanvasArrow(canvas, const Offset(xTip + 2, cy - 6), const Offset(1, -1), Colors.black, size: 3.5);
+    _drawCanvasText(canvas, isEndMill ? '180° Alın' : '${pointAngle.toStringAsFixed(0)}° Uç Açısı', const Offset(28, 106), fontSize: 7.0, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(68, 115), 9);
+
+    // (10) Boyun Radyüsü R1.5
+    canvas.drawLine(const Offset(222, cy + r1 - 2), const Offset(210, 180), dimP);
+    canvas.drawLine(const Offset(210, 180), const Offset(190, 180), dimP);
+    _drawCanvasArrow(canvas, const Offset(222, cy + r1 - 2), const Offset(1, 1), Colors.black, size: 3.5);
+    _drawCanvasText(canvas, 'R 1.5', const Offset(192, 172), fontSize: 7.0);
+    _drawCanvasInspectionBalloon(canvas, const Offset(180, 180), 10);
+
+    // GD&T Dairesel Salgı Toleransı [ ↗ | 0,02 | B ]
+    _drawCanvasGdtFrame(canvas, const Offset(125, 100), '^', '0,02', 'B');
+    canvas.drawLine(const Offset(146, 112), const Offset(152, 132), dimP);
+    _drawCanvasArrow(canvas, const Offset(152, 132), const Offset(1, 1), Colors.black, size: 4);
+
+    // Datum B İşareti [-B-]
+    _drawCanvasDatumMarker(canvas, const Offset(xDimShank, 178), 'B');
+    canvas.drawLine(const Offset(338, 168), const Offset(338, 172), dimP);
+
+    // Yüzey Pürüzlülüğü
+    _drawCanvasSurfaceFinish(canvas, const Offset(185, 132), 'Ra 0.8');
+    _drawCanvasSurfaceFinish(canvas, const Offset(355, 132), 'Ra 1.6');
+
+    // Kesit Düzlemi A-A Göstergesi
+    const double xSec = 145.0;
+    final secP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.8;
+    canvas.drawLine(const Offset(xSec, 112), const Offset(xSec, 126), secP);
+    _drawCanvasArrow(canvas, const Offset(xSec - 6, 119), const Offset(-1, 0), Colors.black, size: 5);
+    _drawCanvasText(canvas, 'A', const Offset(xSec + 4, 112), fontSize: 9.0, fontWeight: FontWeight.bold);
+
+    canvas.drawLine(const Offset(xSec, 174), const Offset(xSec, 188), secP);
+    _drawCanvasArrow(canvas, const Offset(xSec - 6, 181), const Offset(-1, 0), Colors.black, size: 5);
+    _drawCanvasText(canvas, 'A', const Offset(xSec + 4, 178), fontSize: 9.0, fontWeight: FontWeight.bold);
+
+    // Detay C Çemberi
+    if (hasThreadedShank) {
+      final circleP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.7;
+      canvas.drawCircle(const Offset(413.5, cy), 8.5, circleP);
+      canvas.drawLine(const Offset(421, cy - 6), const Offset(435, 130), dimP);
+      canvas.drawLine(const Offset(435, 130), const Offset(448, 130), dimP);
+      _drawCanvasText(canvas, 'C', const Offset(451, 124), fontSize: 8.5, fontWeight: FontWeight.bold);
+    }
+  }
+
+  void _drawCanvasAxialView(Canvas canvas, Size size) {
+    const double cx = 695.0;
+    const double cy = 110.0;
+    const double rAx = 38.0;
+
+    _drawCanvasText(canvas, 'KESİCİ UÇ ALIN GÖRÜNÜŞÜ ( 4 : 1 )', const Offset(cx - 75, 34), fontSize: 8.0, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, '2 PLACES THIS VIEW', const Offset(cx - 28, 168), fontSize: 6.5, color: const Color(0xFF616161));
+
+    // Eksen Çizgileri
+    _drawCanvasChainLine(canvas, const Offset(cx - rAx - 10, cy), const Offset(cx + rAx + 10, cy));
+    _drawCanvasChainLine(canvas, const Offset(cx, cy - rAx - 10), const Offset(cx, cy + rAx + 10));
+
+    // Dış Çap Çemberi
+    final outerP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.4;
+    canvas.drawCircle(const Offset(cx, cy), rAx, outerP);
+
+    if (toolTipType == 'endmill') {
+      final innerP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.1;
+      canvas.drawCircle(const Offset(cx, cy), 7.0, innerP);
+      canvas.drawCircle(const Offset(cx, cy), rAx - 3.5, innerP);
+      for (int k = 0; k < fluteCount; k++) {
+        final double th = k * (2 * math.pi / fluteCount);
+        canvas.drawLine(const Offset(cx, cy), Offset(cx + rAx * math.cos(th), cy + rAx * math.sin(th)), innerP);
+      }
+    } else if (fluteCount == 2) {
+      const double chiselAngle = 135.0 * math.pi / 180.0;
+      const double halfWeb = 4.2;
+      final double c1x = cx - halfWeb * math.cos(chiselAngle);
+      final double c1y = cy - halfWeb * math.sin(chiselAngle);
+      final double c2x = cx + halfWeb * math.cos(chiselAngle);
+      final double c2y = cy + halfWeb * math.sin(chiselAngle);
+
+      final chiselP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 2.2;
+      canvas.drawLine(Offset(c1x, c1y), Offset(c2x, c2y), chiselP);
+
+      final lipP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+      canvas.drawLine(Offset(c1x, c1y), const Offset(658.9, 107.0), lipP);
+      canvas.drawLine(Offset(c2x, c2y), const Offset(731.1, 113.0), lipP);
+
+      final notchP = Paint()..color = const Color(0xFF616161)..style = PaintingStyle.stroke..strokeWidth = 0.8;
+      final path1 = Path()..moveTo(c1x, c1y)..cubicTo(c1x - 8, c1y + 6, c1x - 14, c1y + 12, cx - 18, cy + 22);
+      final path2 = Path()..moveTo(c2x, c2y)..cubicTo(c2x + 8, c2y - 6, c2x + 14, c2y - 12, cx + 18, cy - 22);
+      canvas.drawPath(path1, notchP);
+      canvas.drawPath(path2, notchP);
+    } else {
+      final lipP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+      for (int k = 0; k < 3; k++) {
+        final double th = k * (2 * math.pi / 3);
+        canvas.drawLine(const Offset(cx, cy), Offset(cx + rAx * 0.95 * math.cos(th), cy + rAx * 0.95 * math.sin(th)), lipP);
+      }
+      canvas.drawCircle(const Offset(cx, cy), 3.5, Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.0);
+    }
+
+    // Çap Ölçülendirmesi (Ø d1) ve Denetim Balonu (11)
+    const double diag = rAx * 0.707;
+    final dimP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.7;
+    canvas.drawLine(const Offset(cx - diag, cy - diag), const Offset(cx + diag, cy + diag), dimP);
+    _drawCanvasArrow(canvas, const Offset(cx - diag, cy - diag), const Offset(-1, -1), Colors.black);
+    _drawCanvasArrow(canvas, const Offset(cx + diag, cy + diag), const Offset(1, 1), Colors.black);
+    _drawCanvasText(canvas, 'd1 = ${drillDiameter.toStringAsFixed(2)}', const Offset(cx + diag + 4, cy + diag + 2), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(cx + diag + 38, cy + diag + 6), 11);
+  }
+
+  void _drawCanvasDetailC(Canvas canvas, Size size) {
+    const double bx = 695.0;
+    const double by = 245.0;
+
+    _drawCanvasText(canvas, 'C ( 4 : 1 )', const Offset(bx - 35, 192), fontSize: 8.0, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, 'E 0,4x0,2 DIN 509', const Offset(bx - 35, 200), fontSize: 6.5, color: const Color(0xFF616161));
+    _drawCanvasInspectionBalloon(canvas, const Offset(bx + 42, 196), 12);
+
+    final profP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    final path = Path()
+      ..moveTo(bx - 25, by - 18)
+      ..lineTo(bx - 12, by - 18)
+      ..lineTo(bx - 12, by + 4)
+      ..cubicTo(bx - 12, by + 10, bx - 6, by + 10, bx - 4, by + 10)
+      ..lineTo(bx + 14, by + 5)
+      ..lineTo(bx + 26, by + 5);
+    canvas.drawPath(path, profP);
+
+    final dimP = Paint()..color = const Color(0xFF424242)..style = PaintingStyle.stroke..strokeWidth = 0.6;
+    // Genişlik 2
+    canvas.drawLine(const Offset(bx - 12, by - 22), const Offset(bx + 14, by - 22), dimP);
+    _drawCanvasArrow(canvas, const Offset(bx - 12, by - 22), const Offset(-1, 0), const Color(0xFF424242), size: 3);
+    _drawCanvasArrow(canvas, const Offset(bx + 14, by - 22), const Offset(1, 0), const Color(0xFF424242), size: 3);
+    _drawCanvasText(canvas, '2', const Offset(bx - 1, by - 28), fontSize: 6.5, fontWeight: FontWeight.bold);
+
+    // Derinlik 0.2
+    canvas.drawLine(const Offset(bx + 22, by + 10), const Offset(bx + 22, by + 5), dimP);
+    _drawCanvasArrow(canvas, const Offset(bx + 22, by + 10), const Offset(0, 1), const Color(0xFF424242), size: 2.8);
+    _drawCanvasArrow(canvas, const Offset(bx + 22, by + 5), const Offset(0, -1), const Color(0xFF424242), size: 2.8);
+    _drawCanvasText(canvas, '0,2', const Offset(bx + 25, by + 6), fontSize: 6.0);
+
+    _drawCanvasText(canvas, '15°', const Offset(bx + 18, by - 4), fontSize: 6.0);
+    _drawCanvasText(canvas, 'R0,4', const Offset(bx - 10, by + 13), fontSize: 6.0);
+  }
+
+  void _drawCanvasSectionA(Canvas canvas, Size size) {
+    const double cy = 445.0;
+
+    _drawCanvasText(canvas, 'A - A  ( 1 : 1 )', const Offset(40, 325), fontSize: 8.5, fontWeight: FontWeight.bold);
+    _drawCanvasChainLine(canvas, const Offset(38, cy), const Offset(248, cy));
+
+    const double x0 = 48.0;
+    const double xEnd = 235.0;
+    const double rExt = 18.0;
+    final double webCore = (drillDiameter * 0.22).clamp(1.2, 5.0);
+    final double rWeb = webCore * 2.8;
+
+    final bodyP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.1;
+    canvas.drawRect(const Rect.fromLTWH(x0, cy - rExt, xEnd - x0, rExt * 2), bodyP);
+
+    // 45° Tarama Çizgileri (Hatching)
+    final hatchP = Paint()..color = const Color(0xFF78909C)..style = PaintingStyle.stroke..strokeWidth = 0.5;
+    for (double hx = x0 - rExt; hx < xEnd + rExt; hx += 3.8) {
+      final double px1 = hx.clamp(x0, xEnd);
+      final double py1 = (cy - rExt + (px1 - hx)).clamp(cy - rExt, cy + rExt);
+      final double px2 = (hx + rExt * 2).clamp(x0, xEnd);
+      final double py2 = (cy - rExt + (px2 - hx)).clamp(cy - rExt, cy + rExt);
+      if ((px2 - px1).abs() > 1.0) {
+        canvas.drawLine(Offset(px1, py1), Offset(px2, py2), hatchP);
+      }
+    }
+
+    // İç Öz Kanalı
+    canvas.drawLine(Offset(x0, cy - rWeb), Offset(xEnd - 40, cy - rWeb), bodyP);
+    canvas.drawLine(Offset(x0, cy + rWeb), Offset(xEnd - 40, cy + rWeb), bodyP);
+
+    // Ölçüler ve Balonlar (13, 14, 15)
+    final dimP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.6;
+    canvas.drawLine(Offset(85, cy - rWeb), Offset(85, cy + rWeb), dimP);
+    _drawCanvasArrow(canvas, Offset(85, cy - rWeb), const Offset(0, -1), Colors.black, size: 3.5);
+    _drawCanvasArrow(canvas, Offset(85, cy + rWeb), const Offset(0, 1), Colors.black, size: 3.5);
+    _drawCanvasText(canvas, 'b = ${webCore.toStringAsFixed(2)}', const Offset(90, cy - 3), fontSize: 6.5, fontWeight: FontWeight.bold);
+    _drawCanvasInspectionBalloon(canvas, const Offset(120, cy - 22), 13);
+
+    _drawCanvasText(canvas, 'Kanal = ${((drillDiameter - webCore) / 2).toStringAsFixed(2)}', const Offset(135, cy + 24), fontSize: 6.5);
+    _drawCanvasInspectionBalloon(canvas, const Offset(182, cy + 24), 14);
+
+    _drawCanvasText(canvas, '0,5x45°', const Offset(215, cy + 24), fontSize: 6.5);
+    _drawCanvasInspectionBalloon(canvas, const Offset(245, cy + 24), 15);
+  }
+
+  void _drawCanvas3DModelZone(Canvas canvas, Size size) {
+    const double bx = 265.0;
+    const double by = 310.0;
+    const double bw = 245.0;
+    const double bh = 255.0;
+
+    final borderP = Paint()..color = const Color(0xFFD6DBE1)..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    canvas.drawRect(const Rect.fromLTWH(bx, by, bw, bh), borderP);
+
+    final badgeP = Paint()..color = const Color(0xFFF1F4F8)..style = PaintingStyle.fill;
+    canvas.drawRect(const Rect.fromLTWH(bx, by, bw, 18), badgeP);
+    _drawCanvasText(canvas, '3D İZOMETRİK CAD MODELİ (ISO 13399)', const Offset(bx + 10, by + 4), fontSize: 7.5, fontWeight: FontWeight.bold, color: const Color(0xFF0D47A1));
+
+    // Paint 3D Model into viewport
+    canvas.save();
+    canvas.translate(bx + 5, by + 20);
+    canvas.clipRect(const Rect.fromLTWH(0, 0, bw - 10, bh - 24));
+    final modelPainter = Tool3DModelPainter(
+      rotX: -0.42,
+      rotY: 0.58,
+      rotZ: 0.0,
+      zoom: 0.95,
+      isWireframe: false,
+      toolTipType: toolTipType,
+      pointAngle: pointAngle,
+      drillDiameter: drillDiameter,
+      totalLength: totalLength,
+      fluteLength: fluteLength,
+      reachLength: reachLength,
+      neckDiameter: neckDiameter,
+      shankDiameter: shankDiameter,
+      hasThreadedShank: hasThreadedShank,
+      threadLength: threadLength,
+      threadDiameter: threadDiameter,
+      hexLength: hexLength,
+      hexWidth: hexWidth,
+      coatingColor: coatingColor,
+      fluteCount: fluteCount,
+      show3DDimensions: false,
+    );
+    modelPainter.paint(canvas, const Size(bw - 10, bh - 24));
+    canvas.restore();
+  }
+
+  void _drawCanvasGeneralNotesAndRoughness(Canvas canvas, Size size) {
+    const double nx = 525.0;
+    const double ny = 318.0;
+
+    _drawCanvasText(canvas, 'GENEL İMALAT VE HAVACILIK NOTLARI:', const Offset(nx, ny), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, '1. General tolerance DIN ISO 2768 -medium.', const Offset(nx, ny + 13), fontSize: 6.8);
+    _drawCanvasText(canvas, '2. Deburr and break sharp edges 0,1...0,3 mm.', const Offset(nx, ny + 24), fontSize: 6.8);
+    _drawCanvasText(canvas, '3. Scratches and dents are not acceptable.', const Offset(nx, ny + 35), fontSize: 6.8);
+    _drawCanvasText(canvas, '4. Havacılık Standardı: NAS 907 / NAS 965 Tip D - ISO 13399', const Offset(nx, ny + 46), fontSize: 6.8);
+    _drawCanvasText(canvas, '5. Malzeme: $materialName ($materialHardness)', const Offset(nx, ny + 57), fontSize: 6.8);
+    _drawCanvasText(canvas, '6. Yüzey: $coatingName PVD kaplama', const Offset(nx, ny + 68), fontSize: 6.8);
+
+    // Genel Yüzey Pürüzlülüğü Sembolü (ISO 1302: 3,2 / \ ( \/ ) )
+    const double rx = 765.0;
+    const double ry = 350.0;
+    final rP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.8;
+    final path = Path()
+      ..moveTo(rx, ry - 10)
+      ..lineTo(rx + 4, ry)
+      ..lineTo(rx + 11, ry - 20)
+      ..lineTo(rx + 24, ry - 20);
+    canvas.drawPath(path, rP);
+    _drawCanvasText(canvas, '3,2', const Offset(rx + 10, ry - 28), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, '( \\/ )', const Offset(rx + 27, ry - 20), fontSize: 8.0);
+  }
+
+  void _drawCanvasTitleBlock(Canvas canvas, Size size) {
+    const double tx = 520.0;
+    const double ty = 428.0;
+    const double tw = 297.89;
+    const double th = 143.28;
+
+    final borderP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 1.3;
+    canvas.drawRect(const Rect.fromLTWH(tx, ty, tw, th), borderP);
+
+    final divP = Paint()..color = Colors.black..style = PaintingStyle.stroke..strokeWidth = 0.7;
+    canvas.drawLine(const Offset(tx, ty + 24), const Offset(tx + tw, ty + 24), divP);
+    canvas.drawLine(const Offset(tx, ty + 54), const Offset(tx + tw, ty + 54), divP);
+    canvas.drawLine(const Offset(tx, ty + 84), const Offset(tx + tw, ty + 84), divP);
+    canvas.drawLine(const Offset(tx, ty + 114), const Offset(tx + tw, ty + 114), divP);
+
+    canvas.drawLine(const Offset(tx + 145, ty), const Offset(tx + 145, ty + th), divP);
+    canvas.drawLine(const Offset(tx + 60, ty + 24), const Offset(tx + 60, ty + 84), divP);
+    canvas.drawLine(const Offset(tx + 225, ty), const Offset(tx + 225, ty + 24), divP);
+
+    // Satır 1
+    _drawCanvasText(canvas, 'Tolerans: DIN ISO 2768-m', const Offset(tx + 8, ty + 7), fontSize: 6.5);
+    _drawCanvasText(canvas, 'Gewicht: ~38g', const Offset(tx + 152, ty + 7), fontSize: 6.5);
+    _drawCanvasText(canvas, 'Format: A4', const Offset(tx + 233, ty + 7), fontSize: 7.5, fontWeight: FontWeight.bold);
+
+    // Satır 2
+    _drawCanvasText(canvas, 'Draw', const Offset(tx + 8, ty + 36), fontSize: 6.8, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, DateTime.now().toString().substring(0, 10), const Offset(tx + 66, ty + 31), fontSize: 6.5);
+    _drawCanvasText(canvas, 'H.CANLI', const Offset(tx + 66, ty + 41), fontSize: 7.0, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, 'Scale: 1:1 / 4:1', const Offset(tx + 152, ty + 32), fontSize: 6.5);
+    _drawCanvasText(canvas, 'Proj: 1. AÇI (ISO)', const Offset(tx + 152, ty + 42), fontSize: 6.5);
+
+    // Satır 3
+    _drawCanvasText(canvas, 'Check', const Offset(tx + 8, ty + 66), fontSize: 6.8, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, DateTime.now().toString().substring(0, 10), const Offset(tx + 66, ty + 61), fontSize: 6.5);
+    _drawCanvasText(canvas, 'QC-PASS', const Offset(tx + 66, ty + 71), fontSize: 7.0, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, 'DWG NO: 53-2971-Z$fluteCount', const Offset(tx + 152, ty + 66), fontSize: 7.5, fontWeight: FontWeight.bold);
+
+    // Satır 4
+    _drawCanvasText(canvas, 'Material:', const Offset(tx + 8, ty + 91), fontSize: 6.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, 'Solid Carbide (VHM)', const Offset(tx + 8, ty + 101), fontSize: 6.5);
+    _drawCanvasText(canvas, 'AERO-TOOL-53-2971-Z$fluteCount', const Offset(tx + 152, ty + 96), fontSize: 9.0, fontWeight: FontWeight.bold);
+
+    // Satır 5
+    _drawCanvasText(canvas, 'Finish:', const Offset(tx + 8, ty + 121), fontSize: 6.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, coatingName.split(' ')[0], const Offset(tx + 8, ty + 131), fontSize: 6.5);
+    _drawCanvasText(canvas, 'HAVACILIK MATKAP / FREZE TAKIMI', const Offset(tx + 152, ty + 121), fontSize: 7.5, fontWeight: FontWeight.bold);
+    _drawCanvasText(canvas, 'NAS 965 TIP D / DIN 6527 (ISO 13399)', const Offset(tx + 152, ty + 131), fontSize: 6.5);
+  }
 }
 
 // 3D Vektör Sınıfı
