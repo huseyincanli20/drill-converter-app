@@ -97,12 +97,13 @@ class _DrillTechnicalDrawingScreenState
   double pointAngle = 135.0; // 135° Split Point
 
   // Sap (Shank) Parametreleri: Kullanıcının İstediği Gibi Tam Değiştirilebilir!
+  bool hasThreadedShank = true; // Vidalı Sapı Açıp Kapatma Anahtarı
   double threadLength = 6.35; // Dişli Bölüm Boyu (mm) - Standart 1/4" = 6.35 mm
   double threadDiameter = 6.35; // Diş Çapı (mm) - 1/4" = 6.35 mm
   double hexLength = 7.94; // Kalın Somun Kafa Boyu (mm) - 5/16" = 7.94 mm
   double hexWidth = 7.94; // Kalın Somun Kafa Çapı / Anahtar Ağzı (mm) - 5/16" = 7.94 mm
 
-  String selectedModel = '#30 (Ø3.26mm / 0.1285") - 1/4"-28 Havacilik';
+  String selectedModel = '#30 (Ø3.26mm / 0.1285")';
 
   // Matkap Gövdesi Controller'lar
   final _diamMmController = TextEditingController(text: '3.26');
@@ -283,11 +284,15 @@ class _DrillTechnicalDrawingScreenState
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text(
-                          'TEKNIK IMALAT RESMI - 1/4"-28 THREADED SHANK MATKAP',
+                          hasThreadedShank
+                              ? 'TEKNIK IMALAT RESMI - 1/4"-28 THREADED SHANK MATKAP'
+                              : 'TEKNIK IMALAT RESMI - DUZ SAPLI HAVACILIK MATKABI',
                           style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
                         ),
                         pw.Text(
-                          'HAVACILIK STANDARDI (AEROSPACE NAS 907 TYPE J / 53-2971 SERISI)',
+                          hasThreadedShank
+                              ? 'HAVACILIK STANDARDI (AEROSPACE NAS 907 TYPE J / 53-2971 SERISI)'
+                              : 'HAVACILIK STANDARDI (AEROSPACE NAS 907 TYPE B/J DUZ SAP)',
                           style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
                         ),
                       ],
@@ -295,7 +300,10 @@ class _DrillTechnicalDrawingScreenState
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Text('KOD: 53-2971 | CAP: ${drillDiameter.toStringAsFixed(2)} mm (${(drillDiameter / 25.4).toStringAsFixed(4)}")', style: const pw.TextStyle(fontSize: 8.5)),
+                        pw.Text(
+                          'KOD: ${hasThreadedShank ? "53-2971" : "NAS-907"} | CAP: ${drillDiameter.toStringAsFixed(2)} mm (${(drillDiameter / 25.4).toStringAsFixed(4)}")',
+                          style: const pw.TextStyle(fontSize: 8.5),
+                        ),
                         pw.Text('TARIH: ${DateTime.now().toString().substring(0, 10)} | REV: 05', style: const pw.TextStyle(fontSize: 7.5)),
                       ],
                     ),
@@ -342,22 +350,38 @@ class _DrillTechnicalDrawingScreenState
                         children: [
                           pw.TableRow(
                             decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-                            children: [
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Matkap Capi (d)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Tam Boy (L)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Kesme Boyu (l)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Sap Disi (L1)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Somun Kafasi (L2)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
-                            ],
+                            children: hasThreadedShank
+                                ? [
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Matkap Capi (d)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Tam Boy (L)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Kesme Boyu (l)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Sap Disi (L1)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Somun Kafasi (L2)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                  ]
+                                : [
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Matkap Capi (d)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Tam Boy (L)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Kesme Boyu (l)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Sap Boyu (L_sap)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('Uc Acisi', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8))),
+                                  ],
                           ),
                           pw.TableRow(
-                            children: [
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${drillDiameter.toStringAsFixed(2)} mm [${(drillDiameter / 25.4).toStringAsFixed(4)}"]', style: const pw.TextStyle(fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${totalLength.toStringAsFixed(1)} mm [${(totalLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${fluteLength.toStringAsFixed(1)} mm [${(fluteLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${threadLength.toStringAsFixed(1)} mm (Cap: ${threadDiameter.toStringAsFixed(1)})', style: const pw.TextStyle(fontSize: 8))),
-                              pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${hexLength.toStringAsFixed(1)} mm (Agiz: ${hexWidth.toStringAsFixed(1)})', style: const pw.TextStyle(fontSize: 8))),
-                            ],
+                            children: hasThreadedShank
+                                ? [
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${drillDiameter.toStringAsFixed(2)} mm [${(drillDiameter / 25.4).toStringAsFixed(4)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${totalLength.toStringAsFixed(1)} mm [${(totalLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${fluteLength.toStringAsFixed(1)} mm [${(fluteLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${threadLength.toStringAsFixed(1)} mm (Cap: ${threadDiameter.toStringAsFixed(1)})', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${hexLength.toStringAsFixed(1)} mm (Agiz: ${hexWidth.toStringAsFixed(1)})', style: const pw.TextStyle(fontSize: 8))),
+                                  ]
+                                : [
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${drillDiameter.toStringAsFixed(2)} mm [${(drillDiameter / 25.4).toStringAsFixed(4)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${totalLength.toStringAsFixed(1)} mm [${(totalLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${fluteLength.toStringAsFixed(1)} mm [${(fluteLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${(totalLength - fluteLength).toStringAsFixed(1)} mm', style: const pw.TextStyle(fontSize: 8))),
+                                    pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${pointAngle.toStringAsFixed(0)} deg (Split)', style: const pw.TextStyle(fontSize: 8))),
+                                  ],
                           ),
                         ],
                       ),
@@ -369,12 +393,19 @@ class _DrillTechnicalDrawingScreenState
                         decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey600)),
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text('Sap: 1/4"-28 Vida + 5/16" Altigen Somun', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                            pw.Text('Malzeme: M2 / M42 HSS-Co (Havacilik Tipi)', style: const pw.TextStyle(fontSize: 7.5)),
-                            pw.Text('Kullanim: 90 deg Havali Matkaplar (Angle Drill)', style: const pw.TextStyle(fontSize: 7.5)),
-                            pw.Text('Yuzey: Siyah Oksit / Buhar Menevis', style: const pw.TextStyle(fontSize: 7.5)),
-                          ],
+                          children: hasThreadedShank
+                              ? [
+                                  pw.Text('Sap: 1/4"-28 Vida + 5/16" Altigen Somun', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                                  pw.Text('Malzeme: M2 / M42 HSS-Co (Havacilik Tipi)', style: const pw.TextStyle(fontSize: 7.5)),
+                                  pw.Text('Kullanim: 90 deg Havali Matkaplar (Angle Drill)', style: const pw.TextStyle(fontSize: 7.5)),
+                                  pw.Text('Yuzey: Siyah Oksit / Buhar Menevis', style: const pw.TextStyle(fontSize: 7.5)),
+                                ]
+                              : [
+                                  pw.Text('Sap: Standart Duz Silindirik Sap', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                                  pw.Text('Malzeme: M2 / M42 HSS-Co (Havacilik Tipi)', style: const pw.TextStyle(fontSize: 7.5)),
+                                  pw.Text('Kullanim: Standart ve Havacilik Mandrenleri', style: const pw.TextStyle(fontSize: 7.5)),
+                                  pw.Text('Yuzey: Siyah Oksit / Buhar Menevis', style: const pw.TextStyle(fontSize: 7.5)),
+                                ],
                         ),
                       ),
                     ),
@@ -409,52 +440,66 @@ class _DrillTechnicalDrawingScreenState
 
     double curX = originX;
 
-    // 1. Dişli Sap
-    canvas.setColor(PdfColors.grey400);
-    canvas.drawRect(curX, originY - shankThreadH / 2, threadLenPx, shankThreadH);
-    canvas.fillPath();
-
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(1.2);
-    canvas.drawRect(curX, originY - shankThreadH / 2, threadLenPx, shankThreadH);
-    canvas.strokePath();
-
-    canvas.setColor(PdfColors.grey800);
-    for (double tx = curX + 2; tx < curX + threadLenPx - 2; tx += 3.5) {
-      canvas.moveTo(tx, originY - shankThreadH / 2 - 2);
-      canvas.lineTo(tx + 2, originY + shankThreadH / 2 + 2);
-      canvas.strokePath();
-    }
-    curX += threadLenPx;
-
-    // 2. Kalın Altıgen Somun Kafa
-    canvas.setColor(PdfColors.grey600);
-    canvas.drawRect(curX, originY - hexH / 2, hexLenPx, hexH);
-    canvas.fillPath();
-
-    canvas.setColor(PdfColors.black);
-    canvas.setLineWidth(1.5);
-    canvas.drawRect(curX, originY - hexH / 2, hexLenPx, hexH);
-    canvas.strokePath();
-
-    canvas.setColor(PdfColors.grey300);
-    canvas.moveTo(curX, originY - hexH * 0.28);
-    canvas.lineTo(curX + hexLenPx, originY - hexH * 0.28);
-    canvas.moveTo(curX, originY + hexH * 0.28);
-    canvas.lineTo(curX + hexLenPx, originY + hexH * 0.28);
-    canvas.strokePath();
-    curX += hexLenPx;
-
-    // 3. Silindirik Ara Gövde
-    if (shankShaftLenPx > 0) {
+    if (hasThreadedShank) {
+      // 1. Dişli Sap
       canvas.setColor(PdfColors.grey400);
-      canvas.drawRect(curX, originY - drillH / 2, shankShaftLenPx, drillH);
+      canvas.drawRect(curX, originY - shankThreadH / 2, threadLenPx, shankThreadH);
       canvas.fillPath();
 
       canvas.setColor(PdfColors.black);
-      canvas.drawRect(curX, originY - drillH / 2, shankShaftLenPx, drillH);
+      canvas.setLineWidth(1.2);
+      canvas.drawRect(curX, originY - shankThreadH / 2, threadLenPx, shankThreadH);
       canvas.strokePath();
-      curX += shankShaftLenPx;
+
+      canvas.setColor(PdfColors.grey800);
+      for (double tx = curX + 2; tx < curX + threadLenPx - 2; tx += 3.5) {
+        canvas.moveTo(tx, originY - shankThreadH / 2 - 2);
+        canvas.lineTo(tx + 2, originY + shankThreadH / 2 + 2);
+        canvas.strokePath();
+      }
+      curX += threadLenPx;
+
+      // 2. Kalın Altıgen Somun Kafa
+      canvas.setColor(PdfColors.grey600);
+      canvas.drawRect(curX, originY - hexH / 2, hexLenPx, hexH);
+      canvas.fillPath();
+
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.5);
+      canvas.drawRect(curX, originY - hexH / 2, hexLenPx, hexH);
+      canvas.strokePath();
+
+      canvas.setColor(PdfColors.grey300);
+      canvas.moveTo(curX, originY - hexH * 0.28);
+      canvas.lineTo(curX + hexLenPx, originY - hexH * 0.28);
+      canvas.moveTo(curX, originY + hexH * 0.28);
+      canvas.lineTo(curX + hexLenPx, originY + hexH * 0.28);
+      canvas.strokePath();
+      curX += hexLenPx;
+
+      // 3. Silindirik Ara Gövde
+      if (shankShaftLenPx > 0) {
+        canvas.setColor(PdfColors.grey400);
+        canvas.drawRect(curX, originY - drillH / 2, shankShaftLenPx, drillH);
+        canvas.fillPath();
+
+        canvas.setColor(PdfColors.black);
+        canvas.drawRect(curX, originY - drillH / 2, shankShaftLenPx, drillH);
+        canvas.strokePath();
+        curX += shankShaftLenPx;
+      }
+    } else {
+      // Düz Silindirik Sap
+      final straightShankLenPx = (totalLength - fluteLength) * scaleX;
+      canvas.setColor(PdfColors.grey400);
+      canvas.drawRect(curX, originY - drillH / 2, straightShankLenPx, drillH);
+      canvas.fillPath();
+
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.2);
+      canvas.drawRect(curX, originY - drillH / 2, straightShankLenPx, drillH);
+      canvas.strokePath();
+      curX += straightShankLenPx;
     }
 
     // 4. Helis Kanalı
@@ -501,13 +546,15 @@ class _DrillTechnicalDrawingScreenState
     canvas.setColor(PdfColors.black);
     canvas.setLineWidth(1.0);
 
-    final yDimL = originY + hexH / 2 + 25;
+    final effectiveH = hasThreadedShank ? hexH : drillH;
+
+    final yDimL = originY + effectiveH / 2 + 25;
     canvas.moveTo(originX, yDimL - 6); canvas.lineTo(originX, yDimL + 6);
     canvas.moveTo(tipEndX, yDimL - 6); canvas.lineTo(tipEndX, yDimL + 6);
     canvas.moveTo(originX, yDimL); canvas.lineTo(tipEndX, yDimL);
     canvas.strokePath();
 
-    final yDimFlute = originY - hexH / 2 - 25;
+    final yDimFlute = originY - effectiveH / 2 - 25;
     final fluteStartX = tipEndX - fluteLenPx;
     canvas.moveTo(fluteStartX, yDimFlute - 6); canvas.lineTo(fluteStartX, yDimFlute + 6);
     canvas.moveTo(tipEndX, yDimFlute - 6); canvas.lineTo(tipEndX, yDimFlute + 6);
@@ -519,20 +566,27 @@ class _DrillTechnicalDrawingScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Icon(Icons.flight_takeoff, color: Color(0xFF00E5FF)),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.flight_takeoff, color: Color(0xFF00E5FF), size: 18),
+            SizedBox(width: 6),
+            Text('AIRCRAFT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 15)),
+          ],
+        ),
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFB300),
               foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
-            icon: const Icon(Icons.picture_as_pdf, size: 18),
-            label: const Text('TEKNİK RESİM AÇ / YAZDIR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            icon: const Icon(Icons.print, size: 13),
+            label: const Text('Teknik Resim & Yazdır', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
             onPressed: _openTechnicalDrawing,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
@@ -608,13 +662,13 @@ class _DrillTechnicalDrawingScreenState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.tune, color: Color(0xFFFFB300), size: 18),
-                            SizedBox(width: 8),
+                            const Icon(Icons.tune, color: Color(0xFFFFB300), size: 18),
+                            const SizedBox(width: 8),
                             Text(
-                              'CANLI VİDALI SAP VE GÖVDE CAD ÇİZİMİ',
-                              style: TextStyle(
+                              hasThreadedShank ? 'CANLI VİDALI SAP VE GÖVDE CAD ÇİZİMİ' : 'CANLI DÜZ SAP VE GÖVDE CAD ÇİZİMİ',
+                              style: const TextStyle(
                                 color: Color(0xFFFFB300),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
@@ -631,7 +685,9 @@ class _DrillTechnicalDrawingScreenState
                             border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
                           ),
                           child: Text(
-                            'Matkap: Ø ${drillDiameter.toStringAsFixed(2)} mm | Sap: Ø ${threadDiameter.toStringAsFixed(2)} mm',
+                            hasThreadedShank
+                                ? 'Matkap: Ø ${drillDiameter.toStringAsFixed(2)} mm | Sap: Ø ${threadDiameter.toStringAsFixed(2)} mm'
+                                : 'Matkap: Ø ${drillDiameter.toStringAsFixed(2)} mm | Düz Sap',
                             style: const TextStyle(
                               color: Color(0xFF00E5FF),
                               fontWeight: FontWeight.bold,
@@ -656,6 +712,7 @@ class _DrillTechnicalDrawingScreenState
                         borderRadius: BorderRadius.circular(12),
                         child: CustomPaint(
                           painter: ThreadedShankDrillPainter(
+                            hasThreadedShank: hasThreadedShank,
                             drillDiameter: drillDiameter,
                             totalLength: totalLength,
                             fluteLength: fluteLength,
@@ -674,77 +731,104 @@ class _DrillTechnicalDrawingScreenState
             ),
             const SizedBox(height: 20),
 
-            // 1. KISIM: VİDALI SAPIN DİŞLİ YERİ VE KALIN YERİ PARAMETRELERİ (YENİ!)
+            // 1. KISIM: VİDALI SAP (AÇMA / KAPAMA SİSTEMLİ VE KISALTILMIŞ)
             Card(
               color: const Color(0xFF171E28),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFFFB300), width: 1.2),
+                side: BorderSide(
+                  color: hasThreadedShank ? const Color(0xFFFFB300) : const Color(0xFF232E3E),
+                  width: 1.2,
+                ),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(14.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.build_circle, color: Color(0xFFFFB300), size: 22),
-                        SizedBox(width: 8),
-                        Text(
-                          'Vidalı Sap Parametreleri (Dişli Yer ve Kalın Yer)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFFFB300),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Sapın en arkasındaki vidalı dişin uzunluğunu ve çapını, hemen yanındaki kalın somun kısmının boyunu ve kalınlığını buradan dilediğiniz gibi değiştirebilirsiniz:',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
-                          child: _buildInputField(
-                            label: 'Dişli Yer Boyu (L_vida)',
-                            controller: _threadLenController,
-                            suffix: 'mm',
-                            onChanged: (v) => _updateShankParams(),
-                          ),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.build_circle,
+                              color: hasThreadedShank ? const Color(0xFFFFB300) : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Vidalı Sap',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildInputField(
-                            label: 'Dişli Yer Çapı (Ø_vida)',
-                            controller: _threadDiamController,
-                            suffix: 'mm',
-                            onChanged: (v) => _updateShankParams(),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildInputField(
-                            label: 'Kalın Yer Boyu (L_somun)',
-                            controller: _hexLenController,
-                            suffix: 'mm',
-                            onChanged: (v) => _updateShankParams(),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildInputField(
-                            label: 'Kalın Yer Çapı (Genişlik)',
-                            controller: _hexWidthController,
-                            suffix: 'mm',
-                            onChanged: (v) => _updateShankParams(),
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              hasThreadedShank ? 'Açık' : 'Kapalı',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: hasThreadedShank ? const Color(0xFFFFB300) : Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Switch(
+                              value: hasThreadedShank,
+                              activeColor: const Color(0xFFFFB300),
+                              onChanged: (val) => setState(() => hasThreadedShank = val),
+                            ),
+                          ],
                         ),
                       ],
                     ),
+                    if (hasThreadedShank) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildInputField(
+                              label: 'Vida Boyu',
+                              controller: _threadLenController,
+                              suffix: 'mm',
+                              onChanged: (v) => _updateShankParams(),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInputField(
+                              label: 'Vida Çapı',
+                              controller: _threadDiamController,
+                              suffix: 'mm',
+                              onChanged: (v) => _updateShankParams(),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInputField(
+                              label: 'Somun Boyu',
+                              controller: _hexLenController,
+                              suffix: 'mm',
+                              onChanged: (v) => _updateShankParams(),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildInputField(
+                              label: 'Somun Çapı',
+                              controller: _hexWidthController,
+                              suffix: 'mm',
+                              onChanged: (v) => _updateShankParams(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -909,6 +993,7 @@ class _DrillTechnicalDrawingScreenState
 // -----------------------------------------------------------------------------
 
 class ThreadedShankDrillPainter extends CustomPainter {
+  final bool hasThreadedShank;
   final double drillDiameter;
   final double totalLength;
   final double fluteLength;
@@ -918,7 +1003,8 @@ class ThreadedShankDrillPainter extends CustomPainter {
   final double threadDiameter;
   final double hexWidth;
 
-  ThreadedShankDrillPainter({
+  const ThreadedShankDrillPainter({
+    this.hasThreadedShank = true,
     required this.drillDiameter,
     required this.totalLength,
     required this.fluteLength,
@@ -942,7 +1028,7 @@ class ThreadedShankDrillPainter extends CustomPainter {
       canvas.drawLine(Offset(0, j), Offset(size.width, j), (j % 60 == 0) ? gridMajor : gridMinor);
     }
 
-    final double startX = 75.0;
+    const double startX = 75.0;
     final double centerY = size.height / 2;
     final double maxDrawWidth = size.width - 150.0;
 
@@ -969,60 +1055,74 @@ class ThreadedShankDrillPainter extends CustomPainter {
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke;
 
-    // 1. DİŞLİ SAP (THREADED STUD)
-    final threadRect = Rect.fromLTWH(curX, centerY - threadHPx / 2, threadLenPx, threadHPx);
-    final threadGrad = const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFF3A4858), Color(0xFF1E2833), Color(0xFF11171E), Color(0xFF3A4858)],
-    );
-    canvas.drawRect(threadRect, Paint()..shader = threadGrad.createShader(threadRect));
-    canvas.drawRect(threadRect, contourPaint);
-
-    final threadLinePaint = Paint()..color = const Color(0xFFFFB300)..strokeWidth = 1.8;
-    for (double tx = curX + 2; tx < curX + threadLenPx - 2; tx += 4.5) {
-      canvas.drawLine(
-        Offset(tx, centerY - threadHPx / 2 - 2),
-        Offset(tx + 2.5, centerY + threadHPx / 2 + 2),
-        threadLinePaint,
-      );
-    }
-    curX += threadLenPx;
-
-    // 2. KALIN ALTIGEN SOMUN KISMI (HEX COLLAR)
-    final hexRect = Rect.fromLTWH(curX, centerY - hexHPx / 2, hexLenPx, hexHPx);
-    final hexGrad = const LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFF4A5A6C), Color(0xFF24303E), Color(0xFF151C24), Color(0xFF4A5A6C)],
-    );
-    canvas.drawRect(hexRect, Paint()..shader = hexGrad.createShader(hexRect));
-    canvas.drawRect(hexRect, contourPaint);
-
-    final hexEdgePaint = Paint()
-      ..color = const Color(0xFF00E5FF).withOpacity(0.5)
-      ..strokeWidth = 1.5;
-    canvas.drawLine(Offset(curX, centerY - hexHPx * 0.28), Offset(curX + hexLenPx, centerY - hexHPx * 0.28), hexEdgePaint);
-    canvas.drawLine(Offset(curX, centerY + hexHPx * 0.28), Offset(curX + hexLenPx, centerY + hexHPx * 0.28), hexEdgePaint);
-    curX += hexLenPx;
-
-    // 3. SİLİNDİRİK ARA GÖVDE
-    if (shankShaftLenPx > 0) {
-      final shaftRect = Rect.fromLTWH(curX, centerY - halfDrillH, shankShaftLenPx, drillHPx);
-      final shaftGrad = const LinearGradient(
+    if (hasThreadedShank) {
+      // 1. DİŞLİ SAP (THREADED STUD)
+      final threadRect = Rect.fromLTWH(curX, centerY - threadHPx / 2, threadLenPx, threadHPx);
+      const threadGrad = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFF334252), Color(0xFF1B232C), Color(0xFF11171E), Color(0xFF334252)],
+        colors: [Color(0xFF3A4858), Color(0xFF1E2833), Color(0xFF11171E), Color(0xFF3A4858)],
       );
-      canvas.drawRect(shaftRect, Paint()..shader = shaftGrad.createShader(shaftRect));
-      canvas.drawRect(shaftRect, contourPaint);
-      curX += shankShaftLenPx;
+      canvas.drawRect(threadRect, Paint()..shader = threadGrad.createShader(threadRect));
+      canvas.drawRect(threadRect, contourPaint);
+
+      final threadLinePaint = Paint()..color = const Color(0xFFFFB300)..strokeWidth = 1.8;
+      for (double tx = curX + 2; tx < curX + threadLenPx - 2; tx += 4.5) {
+        canvas.drawLine(
+          Offset(tx, centerY - threadHPx / 2 - 2),
+          Offset(tx + 2.5, centerY + threadHPx / 2 + 2),
+          threadLinePaint,
+        );
+      }
+      curX += threadLenPx;
+
+      // 2. KALIN ALTIGEN SOMUN KISMI (HEX COLLAR)
+      final hexRect = Rect.fromLTWH(curX, centerY - hexHPx / 2, hexLenPx, hexHPx);
+      const hexGrad = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF4A5A6C), Color(0xFF24303E), Color(0xFF151C24), Color(0xFF4A5A6C)],
+      );
+      canvas.drawRect(hexRect, Paint()..shader = hexGrad.createShader(hexRect));
+      canvas.drawRect(hexRect, contourPaint);
+
+      final hexEdgePaint = Paint()
+        ..color = const Color(0xFF00E5FF).withOpacity(0.5)
+        ..strokeWidth = 1.5;
+      canvas.drawLine(Offset(curX, centerY - hexHPx * 0.28), Offset(curX + hexLenPx, centerY - hexHPx * 0.28), hexEdgePaint);
+      canvas.drawLine(Offset(curX, centerY + hexHPx * 0.28), Offset(curX + hexLenPx, centerY + hexHPx * 0.28), hexEdgePaint);
+      curX += hexLenPx;
+
+      // 3. SİLİNDİRİK ARA GÖVDE
+      if (shankShaftLenPx > 0) {
+        final shaftRect = Rect.fromLTWH(curX, centerY - halfDrillH, shankShaftLenPx, drillHPx);
+        const shaftGrad = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF334252), Color(0xFF1B232C), Color(0xFF11171E), Color(0xFF334252)],
+        );
+        canvas.drawRect(shaftRect, Paint()..shader = shaftGrad.createShader(shaftRect));
+        canvas.drawRect(shaftRect, contourPaint);
+        curX += shankShaftLenPx;
+      }
+    } else {
+      // DÜZ SİLİNDİRİK SAP
+      final double straightShankLenPx = (totalLength - fluteLength) * scaleX;
+      final shankRect = Rect.fromLTWH(curX, centerY - halfDrillH, straightShankLenPx, drillHPx);
+      const shankGrad = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF3A4858), Color(0xFF1E2833), Color(0xFF11171E), Color(0xFF3A4858)],
+      );
+      canvas.drawRect(shankRect, Paint()..shader = shankGrad.createShader(shankRect));
+      canvas.drawRect(shankRect, contourPaint);
+      curX += straightShankLenPx;
     }
 
     // 4. KESME HELİSİ
     final fluteBodyLen = fluteLenPx - tipLenPx;
     final fluteRect = Rect.fromLTWH(curX, centerY - halfDrillH, fluteBodyLen, drillHPx);
-    final fluteGrad = const LinearGradient(
+    const fluteGrad = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [Color(0xFF2A3644), Color(0xFF182029), Color(0xFF0E1318), Color(0xFF2A3644)],
@@ -1064,7 +1164,7 @@ class ThreadedShankDrillPainter extends CustomPainter {
       ..lineTo(curX, centerY + halfDrillH)
       ..close();
 
-    final tipGrad = const LinearGradient(
+    const tipGrad = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [Color(0xFF4A5A6C), Color(0xFF24303E), Color(0xFF151C24), Color(0xFF4A5A6C)],
@@ -1086,15 +1186,29 @@ class ThreadedShankDrillPainter extends CustomPainter {
     final inL = (totalLength / 25.4).toStringAsFixed(3);
     final inFlute = (fluteLength / 25.4).toStringAsFixed(3);
 
-    // Dişli Yer Ölçüsü (Sol Dikey)
-    _drawDimensionArrowY(
-      canvas,
-      startX - 18,
-      centerY - threadHPx / 2,
-      centerY + threadHPx / 2,
-      'Ø ${threadDiameter.toStringAsFixed(2)} mm',
-      subText: 'L=${threadLength.toStringAsFixed(1)}mm',
-    );
+    final double effectiveH = hasThreadedShank ? hexHPx : drillHPx;
+
+    if (hasThreadedShank) {
+      // Dişli Yer Ölçüsü (Sol Dikey)
+      _drawDimensionArrowY(
+        canvas,
+        startX - 18,
+        centerY - threadHPx / 2,
+        centerY + threadHPx / 2,
+        'Ø ${threadDiameter.toStringAsFixed(2)} mm',
+        subText: 'L=${threadLength.toStringAsFixed(1)}mm',
+      );
+    } else {
+      // Düz Sap Çapı (Sol Dikey)
+      _drawDimensionArrowY(
+        canvas,
+        startX - 18,
+        centerY - halfDrillH,
+        centerY + halfDrillH,
+        'Ø ${drillDiameter.toStringAsFixed(2)} mm',
+        subText: 'Sap Çapı',
+      );
+    }
 
     // Matkap Çapı (Sağ Uç)
     _drawDimensionArrowY(
@@ -1109,7 +1223,7 @@ class ThreadedShankDrillPainter extends CustomPainter {
     // Tam Boy (Alt Yatay)
     _drawDimensionArrowX(
       canvas,
-      centerY + hexHPx / 2 + 34,
+      centerY + effectiveH / 2 + 34,
       startX,
       tipEndX,
       'Tam Boy (L) = ${totalLength.toStringAsFixed(1)} mm ($inL")',
@@ -1118,7 +1232,7 @@ class ThreadedShankDrillPainter extends CustomPainter {
     // Kesme Boyu (Üst Yatay)
     _drawDimensionArrowX(
       canvas,
-      centerY - hexHPx / 2 - 30,
+      centerY - effectiveH / 2 - 30,
       tipEndX - fluteLenPx,
       tipEndX,
       'Kesme (l) = ${fluteLength.toStringAsFixed(1)} mm ($inFlute")',
@@ -1233,7 +1347,8 @@ class ThreadedShankDrillPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ThreadedShankDrillPainter oldDelegate) {
-    return oldDelegate.drillDiameter != drillDiameter ||
+    return oldDelegate.hasThreadedShank != hasThreadedShank ||
+        oldDelegate.drillDiameter != drillDiameter ||
         oldDelegate.totalLength != totalLength ||
         oldDelegate.fluteLength != fluteLength ||
         oldDelegate.pointAngle != pointAngle ||
