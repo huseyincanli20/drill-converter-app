@@ -1,0 +1,49 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch: # GitHub web arayuzunden "Run workflow" butonu ile baslatma
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-ios:
+    name: Build iOS .ipa on macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java (Android / Flutter Tooling)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build iOS App (No Codesign)
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Create .ipa File
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r DrillMaster_iOS.ipa Payload
+
+      - name: Upload IPA as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DrillMaster_iOS_IPA
+          path: build/ios/iphoneos/DrillMaster_iOS.ipa
+          retention-days: 14
