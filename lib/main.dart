@@ -115,6 +115,7 @@ class _DrillTechnicalDrawingScreenState
   double zoom3D = 1.0;
   bool isAutoRotating = false;
   bool is3DWireframe = false;
+  bool show3DDimensions = true; // 3D Yüzen CAD Ölçülendirme Çizgileri & Etiketleri
   String renderStyle3D = 'solid'; // 'solid' (Katı Model) veya 'wireframe' (Tel Kafes)
   double _baseZoom = 1.0;
   Offset _lastFocalPoint = Offset.zero;
@@ -582,6 +583,1101 @@ class _DrillTechnicalDrawingScreenState
       hexLength = double.tryParse(_hexLenController.text) ?? hexLength;
       hexWidth = double.tryParse(_hexWidthController.text) ?? hexWidth;
     });
+  }
+
+  // ===========================================================================
+  // 3D TEKNİK RESİM GÖRÜNTÜLEME VE YAZDIRMA MOTORU (A4 LANDSCAPE CAD BLUEPRINT)
+  // ===========================================================================
+
+  Future<void> _open3DTechnicalDrawing() async {
+    try {
+      final pdfBytes = await _build3DPdfDocument(PdfPageFormat.a4.landscape);
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfBytes,
+        name: '3D_CAD_Blueprint_Drill_${drillDiameter.toStringAsFixed(2)}mm_Z$fluteCount.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('3D PDF Oluşturma Hatası: $e')),
+        );
+      }
+    }
+  }
+
+  Future<Uint8List> _build3DPdfDocument(PdfPageFormat format) async {
+    final doc = pw.Document();
+    final font = pw.Font.helvetica();
+    final fontBold = pw.Font.helveticaBold();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(841.89, 595.28, marginAll: 16),
+        build: (pw.Context context) {
+          final pdfFont = font.getFont(context);
+          final pdfFontBold = fontBold.getFont(context);
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // 1. Antet Ust Bilgi (3D CAD Catalog Header)
+              pw.Container(
+                width: 810,
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                ),
+                padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          '3D TEKNIK IMALAT VE IZOMETRIK CAD MODEL RESMI (ISO 13399 / NAS 965)',
+                          style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.Text(
+                          hasThreadedShank
+                              ? '1/4"-28 VIDALI SAP HAVACILIK TAKIMI (AEROSPACE NAS 907/965 TYPE D - 53-2971)'
+                              : (toolTipType == 'endmill'
+                                  ? 'DUZ SILINDIRIK SAPLI FREZE / MATKAP (DIN 6527 / NAS 907)'
+                                  : '135° SPLIT POINT HAVACILIK MATKABI (NAS 907 TYPE B/J)'),
+                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey800),
+                        ),
+                      ],
+                    ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.blue900,
+                        borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: pw.Text(
+                        'Z = $fluteCount KESICI AGIZLI',
+                        style: pw.TextStyle(fontSize: 8.5, color: PdfColors.white, fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          'DWG: AERO-3D-${drillDiameter.toStringAsFixed(2)}mm-Z$fluteCount | d1: ${drillDiameter.toStringAsFixed(2)} mm (h9)',
+                          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.Text(
+                          'TARIH: ${DateTime.now().toString().substring(0, 10)} | REV: 3D-CAD-01',
+                          style: const pw.TextStyle(fontSize: 7),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 5),
+
+              // 2. 3D Izometrik Shaded CAD Cizim Kutusu (A4 Shaded 3D Canvas)
+              pw.Container(
+                width: 810,
+                height: 275,
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.white,
+                  border: pw.Border.all(color: PdfColors.black, width: 1.2),
+                ),
+                alignment: pw.Alignment.center,
+                child: pw.CustomPaint(
+                  size: const PdfPoint(800, 270),
+                  painter: (PdfGraphics canvas, PdfPoint size) {
+                    _draw3DIsoPdfDrill(canvas, size, pdfFont, pdfFontBold);
+                  },
+                ),
+              ),
+              pw.SizedBox(height: 5),
+
+              // 3. Alt Detaylar & Tablolar (Detay A/B + ISO 13399 Tablosu + Antet)
+              pw.Container(
+                width: 810,
+                height: 250,
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    // A. Detay A & Detay B Cizim Kutusu (220 pt)
+                    pw.Container(
+                      width: 220,
+                      height: 250,
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.white,
+                        border: pw.Border.all(color: PdfColors.black, width: 1.0),
+                      ),
+                      child: pw.CustomPaint(
+                        size: const PdfPoint(220, 250),
+                        painter: (PdfGraphics canvas, PdfPoint size) {
+                          _drawPdfDetailViews(canvas, size, pdfFont, pdfFontBold);
+                        },
+                      ),
+                    ),
+                    pw.SizedBox(width: 6),
+
+                    // B. ISO 13399 Parametre Tablosu (380 pt)
+                    pw.Container(
+                      width: 375,
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'ISO 13399 / DIN 4000 HAVACILIK STANDART OLCU MATRISI',
+                            style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
+                          ),
+                          pw.SizedBox(height: 3),
+                          pw.Table(
+                            border: pw.TableBorder.all(color: PdfColors.grey600),
+                            columnWidths: const {
+                              0: pw.FlexColumnWidth(1.0),
+                              1: pw.FlexColumnWidth(1.0),
+                              2: pw.FlexColumnWidth(1.0),
+                              3: pw.FlexColumnWidth(1.0),
+                              4: pw.FlexColumnWidth(1.2),
+                              5: pw.FlexColumnWidth(1.0),
+                            },
+                            children: [
+                              pw.TableRow(
+                                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                                children: [
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d1 (h9)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d2 (h6)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('d3 (Boyun)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l2 (Kesme)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l3 (Reach)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.red900))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('l1 (Tam)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5))),
+                                ],
+                              ),
+                              pw.TableRow(
+                                children: [
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${drillDiameter.toStringAsFixed(2)} mm\n[${(drillDiameter / 25.4).toStringAsFixed(4)}"]', style: const pw.TextStyle(fontSize: 7))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${shankDiameter.toStringAsFixed(2)} mm\n[${(shankDiameter / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${neckDiameter.toStringAsFixed(2)} mm', style: const pw.TextStyle(fontSize: 7))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${fluteLength.toStringAsFixed(1)} mm\n[${(fluteLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${reachLength.toStringAsFixed(1)} mm\n[${(reachLength / 25.4).toStringAsFixed(3)}"]', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.red900))),
+                                  pw.Padding(padding: const pw.EdgeInsets.all(3), child: pw.Text('${totalLength.toStringAsFixed(1)} mm\n[${(totalLength / 25.4).toStringAsFixed(3)}"]', style: const pw.TextStyle(fontSize: 7))),
+                                ],
+                              ),
+                            ],
+                          ),
+                          pw.SizedBox(height: 5),
+                          pw.Container(
+                            padding: const pw.EdgeInsets.all(4),
+                            decoration: pw.BoxDecoration(
+                              color: PdfColors.grey100,
+                              border: pw.Border.all(color: PdfColors.grey400),
+                            ),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text('TEKNIK NOTLAR VE STANDARTLAR:', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                                pw.Text('1. Kesici kenarlar Z = $fluteCount olup ${fluteCount == 2 ? "180° simetrik çift helislidir" : "120° üçlü helis piramit merkezlidir"}.', style: const pw.TextStyle(fontSize: 6.5)),
+                                pw.Text('2. l3 boyunlu kullanılabilir derinlik olup havacılık perçin/vida deliklerinde takım sürtünmesini önler.', style: const pw.TextStyle(fontSize: 6.5)),
+                                pw.Text('3. ${hasThreadedShank ? "NAS 965 Tip D: 1/4\"-28 UNF-2A vidalı sap ve 5/16\" (7.94 mm) somun kafa havacılık standardı." : "DIN 6527 silindirik sap taşlanmış h6 toleransındadır."}', style: const pw.TextStyle(fontSize: 6.5)),
+                                pw.Text('4. Kaplama: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name']} (${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['hardness']}).', style: const pw.TextStyle(fontSize: 6.5)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.SizedBox(width: 6),
+
+                    // C. Muhendislik Anteti (Engineering Title Block - 200 pt)
+                    pw.Container(
+                      width: 200,
+                      height: 250,
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.black, width: 1.0),
+                      ),
+                      padding: const pw.EdgeInsets.all(5),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text('AIRCRAFT TOOLING CAD', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                              pw.Text('HAVACILIK TAKIM IMALAT SISTEMLERI', style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey700)),
+                              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+                              pw.Text('PARCA NO: 53-2971-Z$fluteCount-${drillDiameter.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                              pw.Text('HAMMADDE: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']}', style: const pw.TextStyle(fontSize: 6.5)),
+                              pw.Text('SERTLIK: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                              pw.Text('KAPLAMA: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['shortName']}', style: const pw.TextStyle(fontSize: 6.5)),
+                              pw.Text('UC BİLEMESİ: ${pointAngle.toStringAsFixed(0)}° (${selectedTipId == 'endmill' ? 'Duz Freze' : 'Split Point'})', style: const pw.TextStyle(fontSize: 6.5)),
+                            ],
+                          ),
+                          pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Divider(color: PdfColors.grey400, thickness: 0.5),
+                              pw.Row(
+                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                children: [
+                                  pw.Text('OLCEK: 1:1 / 5:1', style: const pw.TextStyle(fontSize: 6.5)),
+                                  pw.Text('PROJ: 1. ACI (ISO)', style: const pw.TextStyle(fontSize: 6.5)),
+                                ],
+                              ),
+                              pw.Row(
+                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                children: [
+                                  pw.Text('CIZIM NO: 3D-${drillDiameter.toStringAsFixed(1)}', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                                  pw.Text('REV: 01', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return doc.save();
+  }
+
+  void _draw3DIsoPdfDrill(PdfGraphics canvas, PdfPoint size, PdfFont pdfFont, PdfFont pdfFontBold) {
+    // 1. Isometric Background Grid (Subtle CAD lines)
+    canvas.setColor(const PdfColor(0.93, 0.95, 0.98));
+    canvas.setLineWidth(0.4);
+    for (double x = -size.x; x < size.x * 2; x += 22) {
+      canvas.moveTo(x, 0);
+      canvas.lineTo(x + size.y * 0.577, size.y);
+      canvas.strokePath();
+      canvas.moveTo(x, size.y);
+      canvas.lineTo(x + size.y * 0.577, 0);
+      canvas.strokePath();
+    }
+
+    // 2. 3D Model Geometry Generation
+    final List<_Face3D> rawFaces = [];
+    final double r1 = drillDiameter / 2;
+    final double r2 = shankDiameter / 2;
+    final double r3 = neckDiameter / 2;
+    final double tipX = -totalLength / 2;
+    final double shankX = totalLength / 2;
+    final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
+    final double pointLen = isEndMill
+        ? 0.0
+        : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
+    final double fluteStartX = tipX + pointLen;
+    final double fluteEndX = tipX + fluteLength;
+    final double reachEndX = tipX + reachLength;
+
+    const int radialSegments = 32;
+    const double angleStep = 2 * math.pi / radialSegments;
+    final Color coatingCol = toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color;
+
+    // Tip Geometry
+    if (isEndMill) {
+      final List<_Vec3> diskVertices = [];
+      for (int i = 0; i < radialSegments; i++) {
+        final double theta = i * angleStep;
+        diskVertices.add(_Vec3(fluteStartX, r1 * 0.92 * math.cos(theta), r1 * 0.92 * math.sin(theta)));
+      }
+      rawFaces.add(_Face3D(vertices: diskVertices, color: coatingCol));
+    } else {
+      final int flutes = fluteCount;
+      final int segmentsPerFlute = radialSegments ~/ flutes;
+      if (flutes == 2) {
+        final double halfWeb = (r1 * 0.08).clamp(0.2, 0.6);
+        const double chiselAngle = 135.0 * math.pi / 180.0;
+        final _Vec3 c1 = _Vec3(tipX, -halfWeb * math.cos(chiselAngle), -halfWeb * math.sin(chiselAngle));
+        final _Vec3 c2 = _Vec3(tipX, halfWeb * math.cos(chiselAngle), halfWeb * math.sin(chiselAngle));
+
+        for (int k = 0; k < 2; k++) {
+          final double baseAngle = k * math.pi;
+          final _Vec3 lipOrigin = (k == 0) ? c1 : c2;
+          for (int j = 0; j < segmentsPerFlute; j++) {
+            final double thA = baseAngle + j * angleStep;
+            final double thB = baseAngle + (j + 1) * angleStep;
+            final double tMid = (j + 0.5) / segmentsPerFlute;
+            final double rBaseA = _calcFluteRadiusMath(thA, r1, 0.58, 2);
+            final double rBaseB = _calcFluteRadiusMath(thB, r1, 0.58, 2);
+            final double drop = (tMid < 0.45) ? (pointLen * 0.3) * (tMid / 0.45) : pointLen * 0.6;
+            final Color col = (tMid < 0.45)
+                ? Color.lerp(coatingCol, Colors.white, 0.45)!
+                : (tMid < 0.7 ? const Color(0xFFFFB300) : const Color(0xFF1E293B));
+            final double xBase = fluteStartX - (pointLen * 0.20) + (drop * 0.5);
+            final vA = _Vec3(xBase, rBaseA * math.cos(thA), rBaseA * math.sin(thA));
+            final vB = _Vec3(xBase, rBaseB * math.cos(thB), rBaseB * math.sin(thB));
+            rawFaces.add(_Face3D(vertices: [lipOrigin, vA, vB], color: col));
+          }
+        }
+      } else {
+        final _Vec3 apex = _Vec3(tipX, 0, 0);
+        for (int k = 0; k < 3; k++) {
+          final double baseAngle = k * (2 * math.pi / 3);
+          for (int j = 0; j < segmentsPerFlute; j++) {
+            final double thA = baseAngle + j * angleStep;
+            final double thB = baseAngle + (j + 1) * angleStep;
+            final double tMid = (j + 0.5) / segmentsPerFlute;
+            final double rBaseA = _calcFluteRadiusMath(thA, r1, 0.58, 3);
+            final double rBaseB = _calcFluteRadiusMath(thB, r1, 0.58, 3);
+            final double drop = (tMid < 0.45) ? (pointLen * 0.3) * (tMid / 0.45) : pointLen * 0.6;
+            final Color col = (tMid < 0.45)
+                ? Color.lerp(coatingCol, Colors.white, 0.45)!
+                : (tMid < 0.7 ? const Color(0xFFFFB300) : const Color(0xFF1E293B));
+            final double xBase = fluteStartX - (pointLen * 0.20) + (drop * 0.5);
+            final vA = _Vec3(xBase, rBaseA * math.cos(thA), rBaseA * math.sin(thA));
+            final vB = _Vec3(xBase, rBaseB * math.cos(thB), rBaseB * math.sin(thB));
+            rawFaces.add(_Face3D(vertices: [apex, vA, vB], color: col));
+          }
+        }
+      }
+    }
+
+    // Helical Flutes
+    const int fluteSlices = 24;
+    final double sliceStep = (fluteEndX - fluteStartX) / fluteSlices;
+    final double flutePitch = 2 * math.pi / fluteCount;
+    for (int s = 0; s < fluteSlices; s++) {
+      final double x0 = fluteStartX + s * sliceStep;
+      final double x1 = x0 + sliceStep;
+      final double twist0 = ((x0 - fluteStartX) / fluteLength) * 2.2 * math.pi;
+      final double twist1 = ((x1 - fluteStartX) / fluteLength) * 2.2 * math.pi;
+      final double webRatio0 = (0.58 + 0.10 * (s / fluteSlices));
+      final double webRatio1 = (0.58 + 0.10 * ((s + 1) / fluteSlices));
+
+      for (int i = 0; i < radialSegments; i++) {
+        final double angleA = i * angleStep;
+        final double angleB = (i + 1) * angleStep;
+        final double r0A = _calcFluteRadiusMath(angleA, r1, webRatio0, fluteCount);
+        final double r0B = _calcFluteRadiusMath(angleB, r1, webRatio0, fluteCount);
+        final double r1A = _calcFluteRadiusMath(angleA, r1, webRatio1, fluteCount);
+        final double r1B = _calcFluteRadiusMath(angleB, r1, webRatio1, fluteCount);
+        final double th0A = angleA + twist0;
+        final double th0B = angleB + twist0;
+        final double th1A = angleA + twist1;
+        final double th1B = angleB + twist1;
+        final v0A = _Vec3(x0, r0A * math.cos(th0A), r0A * math.sin(th0A));
+        final v0B = _Vec3(x0, r0B * math.cos(th0B), r0B * math.sin(th0B));
+        final v1B = _Vec3(x1, r1B * math.cos(th1B), r1B * math.sin(th1B));
+        final v1A = _Vec3(x1, r1A * math.cos(th1A), r1A * math.sin(th1A));
+
+        double phi = angleA % flutePitch;
+        if (phi < 0) phi += flutePitch;
+        final double t = phi / flutePitch;
+        Color quadColor = (t < 0.15)
+            ? Color.lerp(coatingCol, Colors.white, 0.45)!
+            : (t < 0.48 ? coatingCol : (t < 0.85 ? const Color(0xFF1E293B) : Color.lerp(coatingCol, Colors.white, 0.2)!));
+
+        rawFaces.add(_Face3D(vertices: [v0A, v0B, v1B, v1A], color: quadColor));
+      }
+    }
+
+    // Neck & Fillets
+    if (reachLength > fluteLength + 1.0) {
+      final double blendLen = math.min(2.5, (reachEndX - fluteEndX) * 0.25);
+      final double neckStartX = fluteEndX + blendLen;
+      final double neckMidEndX = reachEndX - blendLen;
+      _addSmoothFilletMath(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, 3, const Color(0xFF334155));
+      _addCylinderRingMath(rawFaces, neckStartX, neckMidEndX, r3, r3, radialSegments, const Color(0xFF1E293B));
+      _addSmoothFilletMath(rawFaces, neckMidEndX, reachEndX, r3, r2, radialSegments, 3, const Color(0xFF334155));
+    }
+
+    // Shank (Threaded vs Cylindrical)
+    if (!hasThreadedShank) {
+      final double chamferStart = shankX - 2.0;
+      _addCylinderRingMath(rawFaces, reachEndX, chamferStart, r2, r2, radialSegments, const Color(0xFF475569));
+      _addCylinderRingMath(rawFaces, chamferStart, shankX, r2, r2 * 0.72, radialSegments, const Color(0xFF334155));
+    } else {
+      final double threadEndX = shankX;
+      final double threadStartX = threadEndX - threadLength;
+      final double hexEndX = threadStartX;
+      final double hexStartX = hexEndX - hexLength;
+      final double bodyEndX = hexStartX - 2.5;
+      final double hexRadius = (hexWidth / 2) / math.cos(math.pi / 6);
+
+      _addCylinderRingMath(rawFaces, reachEndX, bodyEndX, r2, r2, radialSegments, const Color(0xFF475569));
+      _addCylinderRingMath(rawFaces, bodyEndX, hexStartX, r2, hexRadius * 0.95, radialSegments, const Color(0xFF334155));
+
+      // Hex Collar
+      const int hexSides = 6;
+      const double hexAngleStep = 2 * math.pi / hexSides;
+      for (int i = 0; i < hexSides; i++) {
+        final double th1 = i * hexAngleStep;
+        final double th2 = (i + 1) * hexAngleStep;
+        final v1 = _Vec3(hexStartX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+        final v2 = _Vec3(hexStartX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v3 = _Vec3(hexEndX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v4 = _Vec3(hexEndX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+        final col = (i % 2 == 0) ? const Color(0xFFCBD5E1) : const Color(0xFF94A3B8);
+        rawFaces.add(_Face3D(vertices: [v1, v2, v3, v4], color: col));
+      }
+
+      // Thread Rings
+      final double rThreadMajor = threadDiameter / 2;
+      final double rThreadMinor = rThreadMajor * 0.86;
+      const int threadRings = 9;
+      final double ringStep = threadLength / threadRings;
+      for (int t = 0; t < threadRings; t++) {
+        final double tx0 = threadStartX + t * ringStep;
+        final double tx1 = tx0 + ringStep * 0.5;
+        final double tx2 = tx0 + ringStep;
+        _addCylinderRingMath(rawFaces, tx0, tx1, rThreadMinor, rThreadMajor, radialSegments, const Color(0xFFFFB300));
+        _addCylinderRingMath(rawFaces, tx1, tx2, rThreadMajor, rThreadMinor, radialSegments, const Color(0xFFD97706));
+      }
+    }
+
+    // 3. Isometric Rotation & Perspective Projection
+    const double pdfRotX = -0.42;
+    const double pdfRotY = 0.58;
+    const double pdfRotZ = 0.0;
+    final double maxDim = math.max(totalLength, math.max(drillDiameter, hexWidth) * 3);
+    final double scale = (size.x * 0.56) / maxDim;
+    final double cx = size.x * 0.48;
+    final double cy = size.y * 0.50;
+
+    final rotatedFaces = rawFaces.map((f) {
+      return _Face3D(
+        vertices: f.vertices.map((v) => v.rotateX(pdfRotX).rotateY(pdfRotY).rotateZ(pdfRotZ)).toList(),
+        color: f.color,
+      );
+    }).toList();
+
+    rotatedFaces.sort((a, b) => a.averageZ.compareTo(b.averageZ));
+
+    // Shading with Key and Fill Light
+    final keyDir = const _Vec3(0.55, -0.75, -0.65).normalized;
+    final fillDir = const _Vec3(-0.65, 0.40, -0.35).normalized;
+
+    for (final face in rotatedFaces) {
+      if (face.vertices.length < 3) continue;
+      final normal = face.normal;
+      final double diff1 = math.max(0.0, -normal.dot(keyDir));
+      final double diff2 = math.max(0.0, -normal.dot(fillDir));
+      final double bright = (0.35 + diff1 * 0.48 + diff2 * 0.20).clamp(0.20, 1.0);
+
+      final r = ((face.color.red * bright).clamp(0, 255)).toInt() / 255.0;
+      final g = ((face.color.green * bright).clamp(0, 255)).toInt() / 255.0;
+      final b = ((face.color.blue * bright).clamp(0, 255)).toInt() / 255.0;
+
+      canvas.setFillColor(PdfColor(r, g, b));
+      final v0 = face.vertices[0];
+      canvas.moveTo(cx + v0.x * scale, cy + v0.y * scale);
+      for (int i = 1; i < face.vertices.length; i++) {
+        final v = face.vertices[i];
+        canvas.lineTo(cx + v.x * scale, cy + v.y * scale);
+      }
+      canvas.closePath();
+      canvas.fillPath();
+
+      // Precision CAD Edge Definition
+      canvas.setColor(PdfColor(r * 0.65, g * 0.65, b * 0.65));
+      canvas.setLineWidth(0.3);
+      canvas.moveTo(cx + v0.x * scale, cy + v0.y * scale);
+      for (int i = 1; i < face.vertices.length; i++) {
+        final v = face.vertices[i];
+        canvas.lineTo(cx + v.x * scale, cy + v.y * scale);
+      }
+      canvas.closePath();
+      canvas.strokePath();
+    }
+
+    // 4. ISO 3D Leader Dimension Lines in PDF
+    Offset projectPdf(_Vec3 v) {
+      final rotV = v.rotateX(pdfRotX).rotateY(pdfRotY).rotateZ(pdfRotZ);
+      return Offset(cx + rotV.x * scale, cy + rotV.y * scale);
+    }
+
+    // d1 Leader
+    final pTipTop = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1, 0));
+    final pTipLead = projectPdf(_Vec3(fluteStartX + fluteLength * 0.25, r1 + 18, 0));
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.8);
+    canvas.moveTo(pTipTop.dx, pTipTop.dy);
+    canvas.lineTo(pTipLead.dx, pTipLead.dy);
+    canvas.lineTo(pTipLead.dx + 25, pTipLead.dy);
+    canvas.strokePath();
+    _drawPdfArrow(canvas, pTipTop.dx, pTipTop.dy, (pTipTop.dx - pTipLead.dx), (pTipTop.dy - pTipLead.dy), PdfColors.black, size: 4.5);
+    canvas.drawString(pdfFontBold, 7.5, 'd1 = Ø${drillDiameter.toStringAsFixed(2)} mm (h9)', pTipLead.dx + 2, pTipLead.dy + 3);
+
+    // l2 Flute Length
+    final pL2_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 12), 0));
+    final pL2_1 = projectPdf(_Vec3(fluteEndX, -(r1 + 12), 0));
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.8);
+    canvas.moveTo(pL2_0.dx, pL2_0.dy); canvas.lineTo(pL2_1.dx, pL2_1.dy); canvas.strokePath();
+    _drawPdfArrow(canvas, pL2_0.dx, pL2_0.dy, (pL2_1.dx - pL2_0.dx), (pL2_1.dy - pL2_0.dy), PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, pL2_1.dx, pL2_1.dy, (pL2_0.dx - pL2_1.dx), (pL2_0.dy - pL2_1.dy), PdfColors.black, size: 4);
+    canvas.drawString(pdfFont, 7.5, 'l2 = ${fluteLength.toStringAsFixed(1)} mm', (pL2_0.dx + pL2_1.dx) / 2 - 18, pL2_0.dy - 10);
+
+    // l3 Usable Reach Length (RED HIGHLIGHT)
+    final pL3_0 = projectPdf(_Vec3(fluteStartX, -(r1 + 22), 0));
+    final pL3_1 = projectPdf(_Vec3(reachEndX, -(r1 + 22), 0));
+    canvas.setColor(PdfColors.red900);
+    canvas.setLineWidth(1.0);
+    canvas.moveTo(pL3_0.dx, pL3_0.dy); canvas.lineTo(pL3_1.dx, pL3_1.dy); canvas.strokePath();
+    _drawPdfArrow(canvas, pL3_0.dx, pL3_0.dy, (pL3_1.dx - pL3_0.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
+    _drawPdfArrow(canvas, pL3_1.dx, pL3_1.dy, (pL3_0.dx - pL3_1.dx), (pL3_0.dy - pL3_1.dy), PdfColors.red900, size: 4);
+    canvas.drawString(pdfFontBold, 7.5, 'l3 = ${reachLength.toStringAsFixed(1)} mm [Kullanilabilir]', (pL3_0.dx + pL3_1.dx) / 2 - 25, pL3_0.dy - 10);
+
+    // l1 Total Length
+    final pL1_0 = projectPdf(_Vec3(tipX, -(r1 + 34), 0));
+    final pL1_1 = projectPdf(_Vec3(shankX, -(r1 + 34), 0));
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(0.9);
+    canvas.moveTo(pL1_0.dx, pL1_0.dy); canvas.lineTo(pL1_1.dx, pL1_1.dy); canvas.strokePath();
+    _drawPdfArrow(canvas, pL1_0.dx, pL1_0.dy, (pL1_1.dx - pL1_0.dx), (pL1_1.dy - pL1_0.dy), PdfColors.black, size: 4);
+    _drawPdfArrow(canvas, pL1_1.dx, pL1_1.dy, (pL1_0.dx - pL1_1.dx), (pL1_0.dy - pL1_1.dy), PdfColors.black, size: 4);
+    canvas.drawString(pdfFontBold, 8, 'l1 = ${totalLength.toStringAsFixed(1)} mm (Tam Boy)', (pL1_0.dx + pL1_1.dx) / 2 - 25, pL1_0.dy - 10);
+
+    // Thread & Hex callout
+    if (hasThreadedShank) {
+      final pThreadLead0 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 4, 0));
+      final pThreadLead1 = projectPdf(_Vec3(shankX - threadLength * 0.4, r2 + 20, 0));
+      canvas.setColor(PdfColors.amber900);
+      canvas.setLineWidth(0.8);
+      canvas.moveTo(pThreadLead0.dx, pThreadLead0.dy);
+      canvas.lineTo(pThreadLead1.dx, pThreadLead1.dy);
+      canvas.lineTo(pThreadLead1.dx + 25, pThreadLead1.dy);
+      canvas.strokePath();
+      _drawPdfArrow(canvas, pThreadLead0.dx, pThreadLead0.dy, (pThreadLead0.dx - pThreadLead1.dx), (pThreadLead0.dy - pThreadLead1.dy), PdfColors.amber900, size: 4);
+      canvas.drawString(pdfFontBold, 7, '1/4"-28 UNF-2A Dis', pThreadLead1.dx + 2, pThreadLead1.dy + 3);
+
+      final pHexLead0 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 4, 0));
+      final pHexLead1 = projectPdf(_Vec3(shankX - threadLength - hexLength * 0.5, r2 + 24, 0));
+      canvas.setColor(PdfColors.grey800);
+      canvas.setLineWidth(0.8);
+      canvas.moveTo(pHexLead0.dx, pHexLead0.dy);
+      canvas.lineTo(pHexLead1.dx, pHexLead1.dy);
+      canvas.lineTo(pHexLead1.dx - 25, pHexLead1.dy);
+      canvas.strokePath();
+      _drawPdfArrow(canvas, pHexLead0.dx, pHexLead0.dy, (pHexLead0.dx - pHexLead1.dx), (pHexLead0.dy - pHexLead1.dy), PdfColors.grey800, size: 4);
+      canvas.drawString(pdfFontBold, 7, '5/16" SW Somun Kafa', pHexLead1.dx - 80, pHexLead1.dy + 3);
+    }
+
+    // 5. Isometric Coordinate Tripod in Bottom Left
+    const double axLen = 22.0;
+    const pOrigin = Offset(35, 35);
+    final pAxX = projectPdf(const _Vec3(axLen, 0, 0)) - Offset(cx, cy) + pOrigin;
+    final pAxY = projectPdf(const _Vec3(0, axLen, 0)) - Offset(cx, cy) + pOrigin;
+    final pAxZ = projectPdf(const _Vec3(0, 0, axLen)) - Offset(cx, cy) + pOrigin;
+
+    canvas.setColor(PdfColors.red); canvas.setLineWidth(1.2);
+    canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxX.dx, pAxX.dy); canvas.strokePath();
+    canvas.drawString(pdfFontBold, 6.5, 'X', pAxX.dx + 2, pAxX.dy - 2);
+
+    canvas.setColor(PdfColors.green); canvas.setLineWidth(1.2);
+    canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxY.dx, pAxY.dy); canvas.strokePath();
+    canvas.drawString(pdfFontBold, 6.5, 'Y', pAxY.dx + 2, pAxY.dy - 2);
+
+    canvas.setColor(PdfColors.blue); canvas.setLineWidth(1.2);
+    canvas.moveTo(pOrigin.dx, pOrigin.dy); canvas.lineTo(pAxZ.dx, pAxZ.dy); canvas.strokePath();
+    canvas.drawString(pdfFontBold, 6.5, 'Z', pAxZ.dx + 2, pAxZ.dy - 2);
+  }
+
+  void _drawPdfDetailViews(PdfGraphics canvas, PdfPoint size, PdfFont pdfFont, PdfFont pdfFontBold) {
+    // Detail Box Border
+    canvas.setColor(PdfColors.grey400);
+    canvas.setLineWidth(0.8);
+    canvas.drawRect(0, 0, size.x, size.y);
+    canvas.strokePath();
+
+    // Dividing Line between Detail A and Detail B
+    canvas.moveTo(0, size.y * 0.50);
+    canvas.lineTo(size.x, size.y * 0.50);
+    canvas.strokePath();
+
+    // === DETAY A: KESICI UC ALIN GORUNUMU (Top Half) ===
+    const double cxA = 48.0;
+    final double cyA = size.y * 0.75;
+    const double rA = 24.0;
+
+    canvas.drawString(pdfFontBold, 7.5, 'DETAY A: KESICI UC ALIN (Z=$fluteCount)', 10, size.y - 12);
+    canvas.drawString(pdfFont, 6.5, 'Olcek 5:1 (Eksenel Bakis)', 10, size.y - 21);
+
+    // Outer Circle
+    canvas.setColor(PdfColors.black);
+    canvas.setLineWidth(1.0);
+    canvas.drawEllipse(cxA, cyA, rA, rA);
+    canvas.strokePath();
+
+    // Axes
+    canvas.setColor(PdfColors.grey400);
+    canvas.setLineWidth(0.5);
+    canvas.moveTo(cxA - rA - 5, cyA); canvas.lineTo(cxA + rA + 5, cyA);
+    canvas.moveTo(cxA, cyA - rA - 5); canvas.lineTo(cxA, cyA + rA + 5);
+    canvas.strokePath();
+
+    if (toolTipType == 'endmill') {
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.2);
+      canvas.moveTo(cxA - rA, cyA); canvas.lineTo(cxA + rA, cyA);
+      canvas.moveTo(cxA, cyA - rA); canvas.lineTo(cxA, cyA + rA);
+      canvas.strokePath();
+      canvas.drawString(pdfFont, 6.5, '• 4 Agizli Duz Freze', 85, cyA + 8);
+      canvas.drawString(pdfFont, 6.5, '• Alin Kesici Agiz', 85, cyA - 2);
+      canvas.drawString(pdfFont, 6.5, '• Kose Pahi 45°', 85, cyA - 12);
+    } else if (fluteCount == 2) {
+      const double chiselAngle = 135.0 * math.pi / 180.0;
+      const double halfWeb = 3.2;
+      final double c1x = cxA - halfWeb * math.cos(chiselAngle);
+      final double c1y = cyA - halfWeb * math.sin(chiselAngle);
+      final double c2x = cxA + halfWeb * math.cos(chiselAngle);
+      final double c2y = cyA + halfWeb * math.sin(chiselAngle);
+
+      canvas.setColor(PdfColors.amber800);
+      canvas.setLineWidth(1.6);
+      canvas.moveTo(c1x, c1y); canvas.lineTo(c2x, c2y); canvas.strokePath();
+
+      canvas.setColor(PdfColors.blue800);
+      canvas.setLineWidth(1.4);
+      canvas.moveTo(c1x, c1y); canvas.lineTo(cxA - rA * 0.95, cyA - 2); canvas.strokePath();
+      canvas.moveTo(c2x, c2y); canvas.lineTo(cxA + rA * 0.95, cyA + 2); canvas.strokePath();
+
+      canvas.drawString(pdfFont, 6.5, '• 135° Split Point', 85, cyA + 10);
+      canvas.drawString(pdfFont, 6.5, '• Oz Kenar (Chisel): 135°', 85, cyA);
+      canvas.drawString(pdfFont, 6.5, '• Z = 2 Kesici Agizli', 85, cyA - 10);
+    } else {
+      canvas.setColor(PdfColors.blue800);
+      canvas.setLineWidth(1.4);
+      for (int k = 0; k < 3; k++) {
+        final double th = k * (2 * math.pi / 3);
+        final double lx = cxA + rA * 0.95 * math.cos(th);
+        final double ly = cyA + rA * 0.95 * math.sin(th);
+        canvas.moveTo(cxA, cyA); canvas.lineTo(lx, ly); canvas.strokePath();
+      }
+      canvas.setFillColor(PdfColors.amber800);
+      canvas.drawEllipse(cxA, cyA, 2.0, 2.0); canvas.fillPath();
+
+      canvas.drawString(pdfFont, 6.5, '• Z = 3 Piramit Uc', 85, cyA + 10);
+      canvas.drawString(pdfFont, 6.5, '• 120° Esit Aralikli', 85, cyA);
+      canvas.drawString(pdfFont, 6.5, '• Yuksek Dairesellik', 85, cyA - 10);
+    }
+
+    // === DETAY B: SAP BAGLANTISI (Bottom Half) ===
+    final double cyB = size.y * 0.25;
+    canvas.drawString(pdfFontBold, 7.5, 'DETAY B: SAP BAGLANTISI (${hasThreadedShank ? "VIDALI" : "DUZ"})', 10, size.y * 0.50 - 12);
+    canvas.drawString(pdfFont, 6.5, hasThreadedShank ? 'NAS 965 Tip D Havacilik' : 'DIN 6527 Silindirik', 10, size.y * 0.50 - 21);
+
+    if (hasThreadedShank) {
+      canvas.setColor(PdfColors.grey300);
+      canvas.drawRect(20, cyB - 14, 26, 28); canvas.fillPath();
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.0);
+      canvas.drawRect(20, cyB - 14, 26, 28); canvas.strokePath();
+      canvas.drawString(pdfFontBold, 6.5, 'HEX', 26, cyB - 2);
+
+      canvas.setColor(PdfColors.amber200);
+      canvas.drawRect(46, cyB - 11, 30, 22); canvas.fillPath();
+      canvas.setColor(PdfColors.amber900);
+      canvas.setLineWidth(1.0);
+      canvas.drawRect(46, cyB - 11, 30, 22); canvas.strokePath();
+      for (double tx = 50; tx < 74; tx += 3.5) {
+        canvas.moveTo(tx, cyB - 11); canvas.lineTo(tx + 2, cyB + 11); canvas.strokePath();
+      }
+
+      canvas.drawString(pdfFont, 6.5, '• 1/4"-28 UNF-2A Dis', 85, cyB + 8);
+      canvas.drawString(pdfFont, 6.5, '• 5/16" Somun Kafa', 85, cyB - 2);
+      canvas.drawString(pdfFont, 6.5, '• Cift 30° Pahli', 85, cyB - 12);
+    } else {
+      canvas.setColor(PdfColors.grey300);
+      canvas.drawRect(20, cyB - 14, 55, 28); canvas.fillPath();
+      canvas.setColor(PdfColors.black);
+      canvas.setLineWidth(1.0);
+      canvas.drawRect(20, cyB - 14, 55, 28); canvas.strokePath();
+      canvas.moveTo(75, cyB - 14); canvas.lineTo(79, cyB - 10);
+      canvas.lineTo(79, cyB + 10); canvas.lineTo(75, cyB + 14); canvas.strokePath();
+
+      canvas.drawString(pdfFont, 6.5, '• Sap: d2 (h6)', 85, cyB + 5);
+      canvas.drawString(pdfFont, 6.5, '• DIN 6527 Standardi', 85, cyB - 5);
+    }
+  }
+
+  // 3D Teknik Resim Etkileşimli Önizleme Modal Penceresi (In-App CAD Blueprint Viewer)
+  void _show3DDrawingPreviewModal() {
+    showDialog(
+      context: context,
+      builder: (BuildContext ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          backgroundColor: const Color(0xFF0A0F17),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+          ),
+          child: Container(
+            width: 1150,
+            constraints: const BoxConstraints(maxHeight: 820),
+            child: Column(
+              children: [
+                // Top CAD Header Bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF111823),
+                    borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                    border: Border(bottom: BorderSide(color: Color(0xFF1E293B))),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00E5FF).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.view_in_ar, color: Color(0xFF00E5FF), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '3D TEKNİK İMALAT VE CAD ÇİZİM SAYFASI (ISO 13399 / NAS 965)',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
+                            ),
+                            Text(
+                              'AIRCRAFT DWG • Z=$fluteCount Ağızlı Helis • ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']} (${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']})',
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF00E5FF)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.print, size: 16),
+                        label: const Text('A4 PDF Olarak Yazdır / Kaydet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFB300),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 3,
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _open3DTechnicalDrawing();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        tooltip: 'Kapat',
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Blueprint Sheet Body
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // CAD Drawing Container (Main 3D Viewport)
+                        Container(
+                          height: 360,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF070B12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF1E293B), width: 1.5),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Stack(
+                              children: [
+                                CustomPaint(
+                                  size: Size.infinite,
+                                  painter: Tool3DModelPainter(
+                                    rotX: rotX,
+                                    rotY: rotY,
+                                    rotZ: rotZ,
+                                    zoom: zoom3D,
+                                    isWireframe: is3DWireframe,
+                                    toolTipType: toolTipType,
+                                    pointAngle: pointAngle,
+                                    drillDiameter: drillDiameter,
+                                    totalLength: totalLength,
+                                    fluteLength: fluteLength,
+                                    reachLength: reachLength,
+                                    neckDiameter: neckDiameter,
+                                    shankDiameter: shankDiameter,
+                                    hasThreadedShank: hasThreadedShank,
+                                    threadLength: threadLength,
+                                    threadDiameter: threadDiameter,
+                                    hexLength: hexLength,
+                                    hexWidth: hexWidth,
+                                    coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
+                                    fluteCount: fluteCount,
+                                    show3DDimensions: true,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 10,
+                                  left: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.7),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: Colors.white12),
+                                    ),
+                                    child: Text(
+                                      '3D CAD İZOMETRİK GÖRÜNÜM  |  Z=$fluteCount Ağızlı  |  Ölçek 1:1  |  Açı: ${(rotY * 180 / math.pi).toStringAsFixed(0)}°',
+                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF00E5FF), fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 10,
+                                  right: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00E5FF).withOpacity(0.18),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
+                                        SizedBox(width: 4),
+                                        Text('ULTRA-HD 48-MESH PBR CAD', style: TextStyle(fontSize: 9.5, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Lower Row: Detail Views & ISO 13399 Table & Title Block
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Detail A & Detail B Views
+                            Expanded(
+                              flex: 4,
+                              child: Container(
+                                height: 210,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0D131C),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF1E293B)),
+                                ),
+                                child: CustomPaint(
+                                  painter: _DetailViews2DPainter(
+                                    drillDiameter: drillDiameter,
+                                    shankDiameter: shankDiameter,
+                                    toolTipType: toolTipType,
+                                    pointAngle: pointAngle,
+                                    fluteCount: fluteCount,
+                                    hasThreadedShank: hasThreadedShank,
+                                    threadLength: threadLength,
+                                    hexLength: hexLength,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // ISO 13399 Dimension Table & Title Block
+                            Expanded(
+                              flex: 6,
+                              child: Container(
+                                height: 210,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0D131C),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF1E293B)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text(
+                                      'ISO 13399 / DIN 4000 HAVACILIK STANDART ÖLÇÜ MATRİSİ',
+                                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFFFFB300), letterSpacing: 0.5),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Table(
+                                      border: TableBorder.all(color: const Color(0xFF1E293B)),
+                                      columnWidths: const {
+                                        0: FlexColumnWidth(1.0),
+                                        1: FlexColumnWidth(1.0),
+                                        2: FlexColumnWidth(1.0),
+                                        3: FlexColumnWidth(1.0),
+                                        4: FlexColumnWidth(1.2),
+                                        5: FlexColumnWidth(1.0),
+                                      },
+                                      children: [
+                                        TableRow(
+                                          decoration: const BoxDecoration(color: Color(0xFF16202E)),
+                                          children: [
+                                            _buildTableCell('d1 (h9)', isHeader: true),
+                                            _buildTableCell('d2 (h6)', isHeader: true),
+                                            _buildTableCell('d3 (Boyun)', isHeader: true),
+                                            _buildTableCell('l2 (Kesme)', isHeader: true),
+                                            _buildTableCell('l3 (Reach)', isHeader: true, isHighlight: true),
+                                            _buildTableCell('l1 (Tam)', isHeader: true),
+                                          ],
+                                        ),
+                                        TableRow(
+                                          children: [
+                                            _buildTableCell('${drillDiameter.toStringAsFixed(2)} mm\n[${(drillDiameter / 25.4).toStringAsFixed(4)}"]'),
+                                            _buildTableCell('${shankDiameter.toStringAsFixed(2)} mm\n[${(shankDiameter / 25.4).toStringAsFixed(3)}"]'),
+                                            _buildTableCell('${neckDiameter.toStringAsFixed(2)} mm'),
+                                            _buildTableCell('${fluteLength.toStringAsFixed(1)} mm\n[${(fluteLength / 25.4).toStringAsFixed(3)}"]'),
+                                            _buildTableCell('${reachLength.toStringAsFixed(1)} mm\n[${(reachLength / 25.4).toStringAsFixed(3)}"]', isHighlight: true),
+                                            _buildTableCell('${totalLength.toStringAsFixed(1)} mm\n[${(totalLength / 25.4).toStringAsFixed(3)}"]'),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    const Spacer(),
+                                    // Engineering Title Block (Antet)
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF131B26),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFF232E3E)),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('DWG: AERO-3D-${drillDiameter.toStringAsFixed(2)}mm-Z$fluteCount', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
+                                              Text('STANDART: ${hasThreadedShank ? "NAS 965 TIP D (1/4\"-28)" : "DIN 6527"}', style: const TextStyle(fontSize: 8.5, color: Colors.white70)),
+                                            ],
+                                          ),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('MALZEME: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: const TextStyle(fontSize: 9, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                                              Text('KAPLAMA: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name'].toString().split(' ')[0]}', style: const TextStyle(fontSize: 8.5, color: Colors.white70)),
+                                            ],
+                                          ),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              const Text('PROJEKSIYON: 1. AÇI (ISO)', style: TextStyle(fontSize: 8.5, color: Colors.white60)),
+                                              Text('REV: 3D-01 | TARIH: ${DateTime.now().toString().substring(0, 10)}', style: const TextStyle(fontSize: 8, color: Colors.white60)),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTableCell(String text, {bool isHeader = false, bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: isHeader ? 8.5 : 8.0,
+          fontWeight: (isHeader || isHighlight) ? FontWeight.bold : FontWeight.normal,
+          color: isHighlight ? const Color(0xFFFF5252) : (isHeader ? Colors.white : Colors.white70),
+        ),
+      ),
+    );
+  }
+
+  static double _calcFluteRadiusMath(double angle, double r1, double webRatio, int flutes) {
+    final double pitch = 2 * math.pi / flutes;
+    double phi = angle % pitch;
+    if (phi < 0) phi += pitch;
+    final double t = phi / pitch;
+
+    if (t < 0.14) {
+      return r1;
+    } else if (t < 0.45) {
+      final double smooth = (t - 0.14) / 0.31;
+      return r1 * (1.0 - 0.065 * (smooth * smooth));
+    } else if (t < 0.88) {
+      final double uGullet = (t - 0.45) / 0.43;
+      final double dip = math.sin(uGullet * math.pi);
+      return r1 * (1.0 - (1.0 - webRatio) * dip);
+    } else {
+      final double uRake = (t - 0.88) / 0.12;
+      return r1 * (webRatio + (1.0 - webRatio) * (uRake * uRake));
+    }
+  }
+
+  static void _addCylinderRingMath(
+    List<_Face3D> faces,
+    double x0,
+    double x1,
+    double r0,
+    double r1,
+    int segments,
+    Color color,
+  ) {
+    final double angleStep = 2 * math.pi / segments;
+    for (int i = 0; i < segments; i++) {
+      final double th1 = i * angleStep;
+      final double th2 = (i + 1) * angleStep;
+      final v0A = _Vec3(x0, r0 * math.cos(th1), r0 * math.sin(th1));
+      final v0B = _Vec3(x0, r0 * math.cos(th2), r0 * math.sin(th2));
+      final v1B = _Vec3(x1, r1 * math.cos(th2), r1 * math.sin(th2));
+      final v1A = _Vec3(x1, r1 * math.cos(th1), r1 * math.sin(th1));
+      faces.add(_Face3D(vertices: [v0A, v0B, v1B, v1A], color: color));
+    }
+  }
+
+  static void _addSmoothFilletMath(
+    List<_Face3D> faces,
+    double xStart,
+    double xEnd,
+    double rStart,
+    double rEnd,
+    int segments,
+    int steps,
+    Color color,
+  ) {
+    final double dx = (xEnd - xStart) / steps;
+    for (int s = 0; s < steps; s++) {
+      final double x0 = xStart + s * dx;
+      final double x1 = x0 + dx;
+      final double t0 = s / steps;
+      final double t1 = (s + 1) / steps;
+      final double s0 = (1 - math.cos(t0 * math.pi)) / 2;
+      final double s1 = (1 - math.cos(t1 * math.pi)) / 2;
+      final double r0 = rStart + (rEnd - rStart) * s0;
+      final double r1 = rStart + (rEnd - rStart) * s1;
+      _addCylinderRingMath(faces, x0, x1, r0, r1, segments, color);
+    }
   }
 
   // Teknik Resmi Doğrudan Açma / Yazdırma Motoru
@@ -1100,13 +2196,25 @@ class _DrillTechnicalDrawingScreenState
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00E5FF),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            icon: const Icon(Icons.view_in_ar, size: 14),
+            label: const Text('3D Teknik Resim & Yazdır', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+            onPressed: _show3DDrawingPreviewModal,
+          ),
+          const SizedBox(width: 6),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFB300),
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
-            icon: const Icon(Icons.print, size: 13),
-            label: const Text('Teknik Resim & Yazdır', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+            icon: const Icon(Icons.architecture, size: 13),
+            label: const Text('2D İmalat', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
             onPressed: _openTechnicalDrawing,
           ),
           const SizedBox(width: 8),
@@ -1338,6 +2446,24 @@ class _DrillTechnicalDrawingScreenState
                                   onPressed: () => setState(() => is3DWireframe = !is3DWireframe),
                                 ),
                                 const SizedBox(width: 8),
+                                FilterChip(
+                                  avatar: const Icon(Icons.straighten, size: 15, color: Color(0xFF00E5FF)),
+                                  label: const Text('3D Ölçüler', style: TextStyle(fontSize: 11)),
+                                  selected: show3DDimensions,
+                                  selectedColor: const Color(0xFF00E5FF).withOpacity(0.2),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFF232E3E)),
+                                  onSelected: (val) => setState(() => show3DDimensions = val),
+                                ),
+                                const SizedBox(width: 8),
+                                ActionChip(
+                                  avatar: const Icon(Icons.picture_as_pdf, size: 15, color: Color(0xFFFFB300)),
+                                  label: const Text('3D Çizim & Yazdır', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  backgroundColor: const Color(0xFF0F141C),
+                                  side: const BorderSide(color: Color(0xFFFFB300)),
+                                  onPressed: _show3DDrawingPreviewModal,
+                                ),
+                                const SizedBox(width: 8),
                                 IconButton(
                                   icon: const Icon(Icons.zoom_in, size: 20),
                                   tooltip: 'Yakınlaştır',
@@ -1486,6 +2612,7 @@ class _DrillTechnicalDrawingScreenState
                                         hexWidth: hexWidth,
                                         coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
                                         fluteCount: fluteCount,
+                                        show3DDimensions: show3DDimensions,
                                       ),
                                     ),
                                     Positioned(
@@ -1501,6 +2628,26 @@ class _DrillTechnicalDrawingScreenState
                                         child: Text(
                                           'Z=$fluteCount Ağızlı  |  Açı: X:${(rotX * 180 / math.pi).toStringAsFixed(0)}°  Y:${(rotY * 180 / math.pi).toStringAsFixed(0)}°  |  Zoom: ${(zoom3D * 100).toStringAsFixed(0)}%',
                                           style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 10,
+                                      right: 12,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF00E5FF).withOpacity(0.18),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
+                                            SizedBox(width: 4),
+                                            Text('ULTRA-HD 48-MESH PBR CAD', style: TextStyle(fontSize: 9.5, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -2281,21 +3428,47 @@ class _DrillTechnicalDrawingScreenState
             ),
             const SizedBox(height: 20),
 
-            // Büyük Teknik Resim Aç / Yazdır Butonu (Kompakt ve Şık)
-            ElevatedButton.icon(
-              onPressed: _openTechnicalDrawing,
-              icon: const Icon(Icons.picture_as_pdf_rounded, size: 20),
-              label: const Text(
-                'Teknik Resmi Görüntüle & Yazdır (A4 PDF)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFB300),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 3,
-              ),
+            // Dual Teknik Resim Butonları: 3D CAD & 2D İmalat Resmi
+            Row(
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: ElevatedButton.icon(
+                    onPressed: _show3DDrawingPreviewModal,
+                    icon: const Icon(Icons.view_in_ar, size: 20),
+                    label: const Text(
+                      '3D Teknik Resmi Görüntüle & Yazdır (A4 CAD)',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, letterSpacing: 0.3),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFB300),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 4,
+                  child: ElevatedButton.icon(
+                    onPressed: _openTechnicalDrawing,
+                    icon: const Icon(Icons.architecture, size: 18),
+                    label: const Text(
+                      '2D İmalat Resmi',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E293B),
+                      foregroundColor: const Color(0xFF00E5FF),
+                      side: const BorderSide(color: Color(0xFF334155)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2918,6 +4091,7 @@ class Tool3DModelPainter extends CustomPainter {
   final double hexWidth;
   final Color coatingColor;
   final int fluteCount;
+  final bool show3DDimensions;
 
   Tool3DModelPainter({
     required this.rotX,
@@ -2940,6 +4114,7 @@ class Tool3DModelPainter extends CustomPainter {
     required this.hexWidth,
     required this.coatingColor,
     this.fluteCount = 2,
+    this.show3DDimensions = false,
   });
 
   @override
@@ -2962,7 +4137,7 @@ class Tool3DModelPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), (y % 60 == 0) ? gridPaintMajor : gridPaintMinor);
     }
 
-    // 2. 3D Geometri Üretimi
+    // 2. 3D Geometri Üretimi (Ultra-HD 48-Segments Mesh)
     final List<_Face3D> rawFaces = [];
 
     final double r1 = drillDiameter / 2;
@@ -2976,7 +4151,7 @@ class Tool3DModelPainter extends CustomPainter {
         ? 0.0
         : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
 
-    const int radialSegments = 36;
+    const int radialSegments = 48; // 48: 2, 3, 4, 6, 8, 12, 16, 24 ile tam bölünen pürüzsüz silindirik çözünürlük
     const double angleStep = 2 * math.pi / radialSegments;
 
     // A. Uç (Tip) Modeli
@@ -3167,7 +4342,7 @@ class Tool3DModelPainter extends CustomPainter {
 
     // B. Yüksek Hassasiyetli Helis Kanallı Gövde (Twist Drill Flutes & Margins - Z=2 / Z=3)
     final double fluteEndX = tipX + fluteLength;
-    const int fluteSlices = 28;
+    const int fluteSlices = 42; // 42 Dilim: Pürüzsüz sürekli helis kanalı
     final double sliceStep = (fluteEndX - fluteStartX) / fluteSlices;
     final double flutePitch = 2 * math.pi / fluteCount;
 
@@ -3178,8 +4353,9 @@ class Tool3DModelPainter extends CustomPainter {
       final double twist0 = ((x0 - fluteStartX) / fluteLength) * 2.2 * math.pi;
       final double twist1 = ((x1 - fluteStartX) / fluteLength) * 2.2 * math.pi;
 
-      final double webRatio0 = (0.58 + 0.10 * (s / fluteSlices));
-      final double webRatio1 = (0.58 + 0.10 * ((s + 1) / fluteSlices));
+      // Gerçekçi matkap öz konikliği (Web Taper): Uçta ince öz (%54), dipte rijit öz (%72)
+      final double webRatio0 = (0.54 + 0.18 * (s / fluteSlices));
+      final double webRatio1 = (0.54 + 0.18 * ((s + 1) / fluteSlices));
 
       for (int i = 0; i < radialSegments; i++) {
         final double angleA = i * angleStep;
@@ -3234,12 +4410,12 @@ class Tool3DModelPainter extends CustomPainter {
       final double neckStartX = fluteEndX + blendLen;
       final double neckMidEndX = reachEndX - blendLen;
 
-      // Kavisli Geçiş 1 (Gövdeden Boyuna 3-kademeli yumuşak geçiş)
-      _addSmoothFillet(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, 3, const Color(0xFF2C3947));
+      // Kavisli Geçiş 1 (Gövdeden Boyuna 5-kademeli pürüzsüz S-geçişi)
+      _addSmoothFillet(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, 5, const Color(0xFF2C3947));
       // Boyun Silindiri
       _addCylinderRing(rawFaces, neckStartX, neckMidEndX, r3, r3, radialSegments, const Color(0xFF25303D));
-      // Kavisli Geçiş 2 (Boyundan Sapa 3-kademeli yumuşak geçiş)
-      _addSmoothFillet(rawFaces, neckMidEndX, reachEndX, r3, r2, radialSegments, 3, const Color(0xFF2C3947));
+      // Kavisli Geçiş 2 (Boyundan Sapa 5-kademeli pürüzsüz S-geçişi)
+      _addSmoothFillet(rawFaces, neckMidEndX, reachEndX, r3, r2, radialSegments, 5, const Color(0xFF2C3947));
     }
 
     // D. Sap (Shank)
@@ -3423,21 +4599,21 @@ class Tool3DModelPainter extends CustomPainter {
 
         const double ambient = 0.28;
 
-        // Blinn-Phong Speküler Parlama
+        // Blinn-Phong Speküler Parlama (Ultra-HD Anisotropic Sheen)
         final _Vec3 halfVector = (keyLightDir * -1.0 + eyeDir * -1.0).normalized;
         final double nDotH = math.max(0.0, normal.dot(halfVector));
-        final double spec = math.pow(nDotH, 26) * 0.52;
+        final double spec = math.pow(nDotH, 32) * 0.65;
 
-        // Fresnel Kenar Işıması
+        // Fresnel Kenar Işıması (Grazing Rim Angle)
         final double nDotV = math.max(0.0, -normal.dot(eyeDir));
-        final double fresnel = math.pow(1.0 - nDotV, 4.0) * 0.35;
+        final double fresnel = math.pow(1.0 - nDotV, 3.5) * 0.42;
 
-        final double brightness = (ambient + keyDiff * 0.55 + fillDiff * 0.22 + rimFactor * 0.18 + spec).clamp(0.18, 1.45);
+        final double brightness = (ambient + keyDiff * 0.58 + fillDiff * 0.20 + rimFactor * 0.22 + spec).clamp(0.18, 1.55);
 
         Color litColor = _shadeColor(face.color, brightness);
-        if (spec > 0.15 || fresnel > 0.20) {
-          final double highHighlight = (spec * 0.7 + fresnel * 0.5).clamp(0.0, 1.0);
-          litColor = Color.lerp(litColor, Colors.white, highHighlight * 0.65)!;
+        if (spec > 0.12 || fresnel > 0.18) {
+          final double highHighlight = (spec * 0.75 + fresnel * 0.55).clamp(0.0, 1.0);
+          litColor = Color.lerp(litColor, Colors.white, highHighlight * 0.70)!;
         }
 
         final fillPaint = Paint()
@@ -3462,7 +4638,12 @@ class Tool3DModelPainter extends CustomPainter {
       ..strokeWidth = 0.9;
     canvas.drawLine(pAxis1, pAxis2, axisPaint);
 
-    // 8. 3D Koordinat Tripod (Sol Alt Köşe)
+    // 8. 3D Yüzen CAD Ölçülendirme Çizgileri & Etiketleri (Floating 3D Dimensions)
+    if (show3DDimensions) {
+      _draw3DFloatingDimensions(canvas, size, scale, cameraDist, tipX, shankX, fluteStartX, fluteEndX, reachEndX, r1, r2);
+    }
+
+    // 9. 3D Koordinat Tripod (Sol Alt Köşe)
     _drawCoordinateTripod(canvas, Offset(46, size.height - 46));
   }
 
@@ -3605,6 +4786,212 @@ class Tool3DModelPainter extends CustomPainter {
     tp.paint(canvas, Offset(pos.dx + 2, pos.dy - 6));
   }
 
+  void _draw3DFloatingDimensions(
+    Canvas canvas,
+    Size size,
+    double scale,
+    double cameraDist,
+    double tipX,
+    double shankX,
+    double fluteStartX,
+    double fluteEndX,
+    double reachEndX,
+    double r1,
+    double r2,
+  ) {
+    Offset project(_Vec3 v) {
+      final rotV = v.rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+      final double f = cameraDist / (cameraDist - rotV.z);
+      return Offset(
+        size.width / 2 + rotV.x * scale * zoom * f,
+        size.height / 2 + rotV.y * scale * zoom * f,
+      );
+    }
+
+    final dimPaint = Paint()
+      ..color = const Color(0xFF00E5FF).withOpacity(0.85)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final redDimPaint = Paint()
+      ..color = const Color(0xFFFF5252).withOpacity(0.95)
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+
+    final dashedPaint = Paint()
+      ..color = Colors.white.withOpacity(0.25)
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+
+    // 1. d1 (Çap)
+    final double d1X = tipX + fluteLength * 0.35;
+    final pTop = project(_Vec3(d1X, r1, 0));
+    final pBot = project(_Vec3(d1X, -r1, 0));
+    final pLead = project(_Vec3(d1X, r1 * 1.8 + 6, 0));
+
+    canvas.drawLine(pTop, pBot, dimPaint);
+    canvas.drawLine(pTop, pLead, dashedPaint);
+    _drawCanvasArrow(canvas, pTop, pBot, const Color(0xFF00E5FF));
+    _drawCanvasArrow(canvas, pBot, pTop, const Color(0xFF00E5FF));
+    _drawFloatingBadge(
+      canvas,
+      'Ø${drillDiameter.toStringAsFixed(2)} mm (h9)',
+      pLead,
+      const Color(0xFF00E5FF),
+      Colors.black,
+    );
+
+    // 2. l2 (Kesme Boyu)
+    final double l2Offset = r1 * 1.6 + 7;
+    final pFlute0 = project(_Vec3(fluteStartX, 0, 0));
+    final pFlute1 = project(_Vec3(fluteEndX, 0, 0));
+    final pFluteDim0 = project(_Vec3(fluteStartX, l2Offset, 0));
+    final pFluteDim1 = project(_Vec3(fluteEndX, l2Offset, 0));
+
+    canvas.drawLine(pFlute0, pFluteDim0, dashedPaint);
+    canvas.drawLine(pFlute1, pFluteDim1, dashedPaint);
+    canvas.drawLine(pFluteDim0, pFluteDim1, dimPaint);
+    _drawCanvasArrow(canvas, pFluteDim1, pFluteDim0, const Color(0xFF00E5FF));
+    _drawCanvasArrow(canvas, pFluteDim0, pFluteDim1, const Color(0xFF00E5FF));
+    final pFluteMid = Offset((pFluteDim0.dx + pFluteDim1.dx) / 2, (pFluteDim0.dy + pFluteDim1.dy) / 2 - 10);
+    _drawFloatingBadge(
+      canvas,
+      'l2 = ${fluteLength.toStringAsFixed(1)} mm',
+      pFluteMid,
+      const Color(0xFF1E293B),
+      const Color(0xFF00E5FF),
+      borderColor: const Color(0xFF00E5FF),
+    );
+
+    // 3. l3 (Kullanılabilir Boy - RED HIGHLIGHT)
+    final double l3Offset = r1 * 2.4 + 14;
+    final pReachEnd = project(_Vec3(reachEndX, 0, 0));
+    final pReachDim0 = project(_Vec3(fluteStartX, l3Offset, 0));
+    final pReachDim1 = project(_Vec3(reachEndX, l3Offset, 0));
+
+    canvas.drawLine(pFluteDim0, pReachDim0, dashedPaint);
+    canvas.drawLine(pReachEnd, pReachDim1, dashedPaint);
+    canvas.drawLine(pReachDim0, pReachDim1, redDimPaint);
+    _drawCanvasArrow(canvas, pReachDim1, pReachDim0, const Color(0xFFFF5252));
+    _drawCanvasArrow(canvas, pReachDim0, pReachDim1, const Color(0xFFFF5252));
+    final pReachMid = Offset((pReachDim0.dx + pReachDim1.dx) / 2, (pReachDim0.dy + pReachDim1.dy) / 2 - 10);
+    _drawFloatingBadge(
+      canvas,
+      'l3 = ${reachLength.toStringAsFixed(1)} mm [Kullanılabilir]',
+      pReachMid,
+      const Color(0xFF3B0000),
+      const Color(0xFFFF5252),
+      borderColor: const Color(0xFFFF5252),
+    );
+
+    // 4. l1 (Tam Boy)
+    final double l1Offset = -(r1 * 1.8 + 12);
+    final pTip = project(_Vec3(tipX, 0, 0));
+    final pShank = project(_Vec3(shankX, 0, 0));
+    final pTotDim0 = project(_Vec3(tipX, l1Offset, 0));
+    final pTotDim1 = project(_Vec3(shankX, l1Offset, 0));
+
+    canvas.drawLine(pTip, pTotDim0, dashedPaint);
+    canvas.drawLine(pShank, pTotDim1, dashedPaint);
+    canvas.drawLine(pTotDim0, pTotDim1, dimPaint);
+    _drawCanvasArrow(canvas, pTotDim1, pTotDim0, const Color(0xFF00E5FF));
+    _drawCanvasArrow(canvas, pTotDim0, pTotDim1, const Color(0xFF00E5FF));
+    final pTotMid = Offset((pTotDim0.dx + pTotDim1.dx) / 2, (pTotDim0.dy + pTotDim1.dy) / 2 + 10);
+    _drawFloatingBadge(
+      canvas,
+      'l1 = ${totalLength.toStringAsFixed(1)} mm',
+      pTotMid,
+      const Color(0xFF1E293B),
+      Colors.white,
+      borderColor: Colors.white24,
+    );
+
+    // 5. Vidalı Sap / Somun Çağrıları
+    if (hasThreadedShank) {
+      final double threadMidX = shankX - threadLength * 0.5;
+      final pThreadPos = project(_Vec3(threadMidX, -(r1 * 1.5 + 8), 0));
+      _drawFloatingBadge(
+        canvas,
+        '1/4"-28 UNF-2A',
+        pThreadPos,
+        const Color(0xFFFFB300),
+        Colors.black,
+      );
+
+      final double hexMidX = shankX - threadLength - hexLength * 0.5;
+      final pHexPos = project(_Vec3(hexMidX, r1 * 1.6 + 8, 0));
+      _drawFloatingBadge(
+        canvas,
+        '5/16" HEX (SW 7.94)',
+        pHexPos,
+        const Color(0xFF475569),
+        Colors.white,
+      );
+    }
+  }
+
+  void _drawFloatingBadge(
+    Canvas canvas,
+    String text,
+    Offset center,
+    Color bgColor,
+    Color textColor, {
+    Color? borderColor,
+  }) {
+    final span = TextSpan(
+      text: text,
+      style: TextStyle(
+        color: textColor,
+        fontSize: 9.5,
+        fontWeight: FontWeight.bold,
+        fontFamily: 'monospace',
+      ),
+    );
+    final tp = TextPainter(text: span, textDirection: TextDirection.ltr)..layout();
+    const padH = 6.0;
+    const padV = 3.0;
+    final rect = Rect.fromCenter(
+      center: center,
+      width: tp.width + padH * 2,
+      height: tp.height + padV * 2,
+    );
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(4));
+
+    final bgP = Paint()..color = bgColor;
+    canvas.drawRRect(rrect, bgP);
+
+    if (borderColor != null) {
+      final borderP = Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawRRect(rrect, borderP);
+    }
+
+    tp.paint(canvas, Offset(rect.left + padH, rect.top + padV));
+  }
+
+  void _drawCanvasArrow(Canvas canvas, Offset from, Offset to, Color color) {
+    final double dx = to.dx - from.dx;
+    final double dy = to.dy - from.dy;
+    final double len = math.sqrt(dx * dx + dy * dy);
+    if (len < 1.0) return;
+    final double ux = dx / len;
+    final double uy = dy / len;
+    const double arrowLen = 6.0;
+    const double arrowW = 3.0;
+
+    final p1 = Offset(to.dx - ux * arrowLen - uy * arrowW, to.dy - uy * arrowLen + ux * arrowW);
+    final p2 = Offset(to.dx - ux * arrowLen + uy * arrowW, to.dy - uy * arrowLen - ux * arrowW);
+
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color..style = PaintingStyle.fill);
+  }
+
   @override
   bool shouldRepaint(covariant Tool3DModelPainter oldDelegate) {
     return oldDelegate.rotX != rotX ||
@@ -3612,6 +4999,7 @@ class Tool3DModelPainter extends CustomPainter {
         oldDelegate.rotZ != rotZ ||
         oldDelegate.zoom != zoom ||
         oldDelegate.isWireframe != isWireframe ||
+        oldDelegate.show3DDimensions != show3DDimensions ||
         oldDelegate.toolTipType != toolTipType ||
         oldDelegate.pointAngle != pointAngle ||
         oldDelegate.drillDiameter != drillDiameter ||
@@ -3628,6 +5016,138 @@ class Tool3DModelPainter extends CustomPainter {
         oldDelegate.coatingColor != coatingColor ||
         oldDelegate.fluteCount != fluteCount;
   }
+}
+
+// =============================================================================
+// MODAL DETAY GÖRÜNÜM ÇİZİCİSİ (Detail A & Detail B 2D Painter)
+// =============================================================================
+
+class _DetailViews2DPainter extends CustomPainter {
+  final double drillDiameter;
+  final double shankDiameter;
+  final String toolTipType;
+  final double pointAngle;
+  final int fluteCount;
+  final bool hasThreadedShank;
+  final double threadLength;
+  final double hexLength;
+
+  _DetailViews2DPainter({
+    required this.drillDiameter,
+    required this.shankDiameter,
+    required this.toolTipType,
+    required this.pointAngle,
+    required this.fluteCount,
+    required this.hasThreadedShank,
+    required this.threadLength,
+    required this.hexLength,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Top Half: Detay A (Kesici Uç Alın Görünümü)
+    final double midY = size.height * 0.50;
+    final dividerPaint = Paint()..color = const Color(0xFF1E293B)..strokeWidth = 1.2;
+    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), dividerPaint);
+
+    const double cxA = 52.0;
+    final double cyA = size.height * 0.25;
+    const double rA = 30.0;
+
+    // Outer Circle
+    canvas.drawCircle(Offset(cxA, cyA), rA, Paint()..color = const Color(0xFF16202E));
+    canvas.drawCircle(Offset(cxA, cyA), rA, Paint()..color = const Color(0xFF00E5FF)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+
+    // Axes
+    final axisP = Paint()..color = Colors.white24..strokeWidth = 0.8;
+    canvas.drawLine(Offset(cxA - rA - 8, cyA), Offset(cxA + rA + 8, cyA), axisP);
+    canvas.drawLine(Offset(cxA, cyA - rA - 8), Offset(cxA, cyA + rA + 8), axisP);
+
+    if (toolTipType == 'endmill') {
+      final lipP = Paint()..color = Colors.white..strokeWidth = 2.0;
+      canvas.drawLine(Offset(cxA - rA, cyA), Offset(cxA + rA, cyA), lipP);
+      canvas.drawLine(Offset(cxA, cyA - rA), Offset(cxA, cyA + rA), lipP);
+      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
+      _drawText(canvas, '• Düz Tabanlı Freze (180° Alın)', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• 4 Ağızlı Alın Kesici Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• 45° Köşe Koruma Pahı', Offset(105, cyA + 20), const Color(0xFFFFB300), fontSize: 9.5);
+    } else if (fluteCount == 2) {
+      const double chiselAngle = 135.0 * math.pi / 180.0;
+      const double halfWeb = 3.8;
+      final double c1x = cxA - halfWeb * math.cos(chiselAngle);
+      final double c1y = cyA - halfWeb * math.sin(chiselAngle);
+      final double c2x = cxA + halfWeb * math.cos(chiselAngle);
+      final double c2y = cyA + halfWeb * math.sin(chiselAngle);
+
+      // Chisel Edge
+      canvas.drawLine(Offset(c1x, c1y), Offset(c2x, c2y), Paint()..color = const Color(0xFFFFB300)..strokeWidth = 3.0);
+      // Lips
+      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
+      canvas.drawLine(Offset(c1x, c1y), Offset(cxA - rA * 0.95, cyA - 4), lipP);
+      canvas.drawLine(Offset(c2x, c2y), Offset(cxA + rA * 0.95, cyA + 4), lipP);
+
+      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=2)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
+      _drawText(canvas, '• 135° Split Point Çapraz Bileme', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• Öz Kenar (Chisel Edge): 135° Açılı', Offset(105, cyA + 4), const Color(0xFFFFB300), fontSize: 9.5);
+      _drawText(canvas, '• 2 Ağızlı Karşılıklı 180° Helis', Offset(105, cyA + 20), Colors.white70, fontSize: 9.5);
+    } else {
+      final lipP = Paint()..color = const Color(0xFF00E5FF)..strokeWidth = 2.2;
+      for (int k = 0; k < 3; k++) {
+        final double th = k * (2 * math.pi / 3);
+        final double lx = cxA + rA * 0.95 * math.cos(th);
+        final double ly = cyA + rA * 0.95 * math.sin(th);
+        canvas.drawLine(Offset(cxA, cyA), Offset(lx, ly), lipP);
+      }
+      canvas.drawCircle(Offset(cxA, cyA), 3.0, Paint()..color = const Color(0xFFFFB300));
+
+      _drawText(canvas, 'DETAY A: KESİCİ UÇ ALIN (Z=3)', Offset(105, cyA - 28), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
+      _drawText(canvas, '• Z = 3 Ağızlı Piramit Merkez Uç', Offset(105, cyA - 12), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• 120° Eşit Açılı Kesici Geometri', Offset(105, cyA + 4), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• Üstün Rijitlik ve Dairesellik', Offset(105, cyA + 20), const Color(0xFFFFB300), fontSize: 9.5);
+    }
+
+    // Bottom Half: Detay B (Sap Bağlantısı)
+    final double cyB = size.height * 0.75;
+    if (hasThreadedShank) {
+      final hexR = Rect.fromCenter(center: Offset(38, cyB), width: 32, height: 32);
+      canvas.drawRect(hexR, Paint()..color = const Color(0xFF2C3947));
+      canvas.drawRect(hexR, Paint()..color = const Color(0xFF94A3B8)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+      _drawText(canvas, '5/16"', Offset(29, cyB - 6), Colors.white, isBold: true, fontSize: 8.5);
+
+      final thR = Rect.fromCenter(center: Offset(70, cyB), width: 32, height: 24);
+      canvas.drawRect(thR, Paint()..color = const Color(0xFF3E2D12));
+      canvas.drawRect(thR, Paint()..color = const Color(0xFFFFB300)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+      for (double tx = 58; tx < 84; tx += 4) {
+        canvas.drawLine(Offset(tx, cyB - 12), Offset(tx + 2, cyB + 12), Paint()..color = const Color(0xFFFFB300)..strokeWidth = 1.0);
+      }
+
+      _drawText(canvas, 'DETAY B: VIDALI SAP BAĞLANTISI', Offset(105, cyB - 28), const Color(0xFFFFB300), isBold: true, fontSize: 10.5);
+      _drawText(canvas, '• Standart: NAS 965 Tip D Havacılık', Offset(105, cyB - 12), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• Diş: 1/4"-28 UNF-2A (60° V-Profili)', Offset(105, cyB + 4), const Color(0xFFFFB300), fontSize: 9.5);
+      _drawText(canvas, '• Kafa: 5/16" (7.94 mm) 6-Gen Somun', Offset(105, cyB + 20), Colors.white70, fontSize: 9.5);
+    } else {
+      final shR = Rect.fromCenter(center: Offset(50, cyB), width: 56, height: 30);
+      canvas.drawRect(shR, Paint()..color = const Color(0xFF2C3947));
+      canvas.drawRect(shR, Paint()..color = const Color(0xFF94A3B8)..style = PaintingStyle.stroke..strokeWidth = 1.5);
+      canvas.drawLine(Offset(74, cyB - 15), Offset(78, cyB - 10), Paint()..color = Colors.white..strokeWidth = 1.2);
+      canvas.drawLine(Offset(78, cyB - 10), Offset(78, cyB + 10), Paint()..color = Colors.white..strokeWidth = 1.2);
+      canvas.drawLine(Offset(78, cyB + 10), Offset(74, cyB + 15), Paint()..color = Colors.white..strokeWidth = 1.2);
+
+      _drawText(canvas, 'DETAY B: SİLİNDİRİK SAP BAĞLANTISI', Offset(105, cyB - 24), const Color(0xFF00E5FF), isBold: true, fontSize: 10.5);
+      _drawText(canvas, '• Standart: DIN 6527 / ISO 13399', Offset(105, cyB - 8), Colors.white70, fontSize: 9.5);
+      _drawText(canvas, '• Sap Toleransı: d2 (h6 Taşlanmış)', Offset(105, cyB + 8), const Color(0xFF00E5FF), fontSize: 9.5);
+      _drawText(canvas, '• Uçta 45° Havşa Pahı Kırılmış', Offset(105, cyB + 24), Colors.white70, fontSize: 9.5);
+    }
+  }
+
+  void _drawText(Canvas canvas, String text, Offset pos, Color color, {bool isBold = false, double fontSize = 10}) {
+    final span = TextSpan(text: text, style: TextStyle(color: color, fontSize: fontSize, fontWeight: isBold ? FontWeight.bold : FontWeight.normal));
+    final tp = TextPainter(text: span, textDirection: TextDirection.ltr)..layout();
+    tp.paint(canvas, pos);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DetailViews2DPainter oldDelegate) => true;
 }
 
 // 3D Vektör Sınıfı
