@@ -3024,26 +3024,6 @@ class _DrillTechnicalDrawingScreenState
                                       ),
                                     ),
                                     Positioned(
-                                      top: 10,
-                                      right: 12,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF00E5FF).withOpacity(0.18),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
-                                        ),
-                                        child: const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.auto_awesome, size: 12, color: Color(0xFF00E5FF)),
-                                            SizedBox(width: 4),
-                                            Text('ULTRA-HD 48-MESH PBR CAD', style: TextStyle(fontSize: 9.5, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
                                       bottom: 10,
                                       left: 12,
                                       child: Container(
