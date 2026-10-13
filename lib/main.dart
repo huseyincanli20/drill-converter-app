@@ -287,6 +287,7 @@ class _DrillTechnicalDrawingScreenState
 
   String selectedMaterialId = 'm42';
   String selectedCoatingId = 'tialn';
+  int fluteCount = 2; // 2: 2 Ağızlı (Standart Helis), 3: 3 Ağızlı (Rijit / Havacılık)
 
   // Sap (Shank) Parametreleri (1/4"-28 Vidalı Sap - NAS 965 Standardı)
   bool hasThreadedShank = true; // Varsayılan olarak vidalı sap açık
@@ -730,6 +731,7 @@ class _DrillTechnicalDrawingScreenState
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
                             pw.Text('Standart: ${hasThreadedShank ? "NAS 965 Tip B/D (1/4\"-28)" : "DIN 6527 / ISO 13399"}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('Kesici Ağız: Z = $fluteCount (${fluteCount == 2 ? "2 Ağızlı Helis" : "3 Ağızlı Helis"})', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                             pw.Text('Hammadde: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['name']}', style: const pw.TextStyle(fontSize: 7.5)),
                             pw.Text('Sertlik: ${toolMaterials.firstWhere((m) => m['id'] == selectedMaterialId)['hardness']}', style: const pw.TextStyle(fontSize: 7.5)),
                             pw.Text('Kaplama: ${toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['name']}', style: const pw.TextStyle(fontSize: 7.5)),
@@ -1483,6 +1485,7 @@ class _DrillTechnicalDrawingScreenState
                                         hexLength: hexLength,
                                         hexWidth: hexWidth,
                                         coatingColor: toolCoatings.firstWhere((c) => c['id'] == selectedCoatingId)['color'] as Color,
+                                        fluteCount: fluteCount,
                                       ),
                                     ),
                                     Positioned(
@@ -1496,7 +1499,7 @@ class _DrillTechnicalDrawingScreenState
                                           border: Border.all(color: Colors.white12),
                                         ),
                                         child: Text(
-                                          'Açı: X:${(rotX * 180 / math.pi).toStringAsFixed(0)}°  Y:${(rotY * 180 / math.pi).toStringAsFixed(0)}°  |  Zoom: ${(zoom3D * 100).toStringAsFixed(0)}%',
+                                          'Z=$fluteCount Ağızlı  |  Açı: X:${(rotX * 180 / math.pi).toStringAsFixed(0)}°  Y:${(rotY * 180 / math.pi).toStringAsFixed(0)}°  |  Zoom: ${(zoom3D * 100).toStringAsFixed(0)}%',
                                           style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
                                         ),
                                       ),
@@ -1550,6 +1553,7 @@ class _DrillTechnicalDrawingScreenState
                                     hexLength: hexLength,
                                     threadDiameter: threadDiameter,
                                     hexWidth: hexWidth,
+                                    fluteCount: fluteCount,
                                   ),
                                 ),
                               ),
@@ -1563,6 +1567,7 @@ class _DrillTechnicalDrawingScreenState
                       runSpacing: 6,
                       alignment: WrapAlignment.center,
                       children: [
+                        _buildParamChip('Ağız Sayısı', 'Z = $fluteCount (${fluteCount == 2 ? "2 Ağızlı" : "3 Ağızlı"})', const Color(0xFF00E5FF)),
                         _buildParamChip('d1 (h9)', 'Ø ${drillDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF)),
                         _buildParamChip('d2 (h6)', 'Ø ${shankDiameter.toStringAsFixed(2)} mm', const Color(0xFF00E5FF)),
                         _buildParamChip('d3 (Boyun)', 'Ø ${neckDiameter.toStringAsFixed(2)} mm', Colors.grey),
@@ -1659,6 +1664,146 @@ class _DrillTechnicalDrawingScreenState
                             child: Text(
                               standardTipAngles.firstWhere((t) => t['id'] == selectedTipId)['desc'],
                               style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // KESİCİ AĞIZ SAYISI (2 AĞIZLI / 3 AĞIZLI KESİCİ)
+                    Row(
+                      children: [
+                        const Icon(Icons.filter_2, color: Color(0xFF00E5FF), size: 18),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Matkap Kesici Ağız Sayısı:',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB300).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            'Z = $fluteCount Ağızlı',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFB300)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => fluteCount = 2),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: fluteCount == 2 ? const Color(0xFF00E5FF).withOpacity(0.14) : const Color(0xFF0F141C),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: fluteCount == 2 ? const Color(0xFF00E5FF) : const Color(0xFF232E3E),
+                                  width: fluteCount == 2 ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<int>(
+                                    value: 2,
+                                    groupValue: fluteCount,
+                                    activeColor: const Color(0xFF00E5FF),
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => fluteCount = val);
+                                    },
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('2 Ağızlı Kesici', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                                        SizedBox(height: 2),
+                                        Text('Standart Helis & Geniş Talaş', style: TextStyle(fontSize: 10, color: Colors.white60)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => fluteCount = 3),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: fluteCount == 3 ? const Color(0xFFFFB300).withOpacity(0.14) : const Color(0xFF0F141C),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: fluteCount == 3 ? const Color(0xFFFFB300) : const Color(0xFF232E3E),
+                                  width: fluteCount == 3 ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<int>(
+                                    value: 3,
+                                    groupValue: fluteCount,
+                                    activeColor: const Color(0xFFFFB300),
+                                    onChanged: (val) {
+                                      if (val != null) setState(() => fluteCount = val);
+                                    },
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('3 Ağızlı Kesici', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                                        SizedBox(height: 2),
+                                        Text('Yüksek Rijitlik & Çapaksız Delik', style: TextStyle(fontSize: 10, color: Colors.white60)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F141C),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF232E3E)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            fluteCount == 2 ? Icons.check_circle_outline : Icons.star_border,
+                            size: 14,
+                            color: fluteCount == 2 ? const Color(0xFF00E5FF) : const Color(0xFFFFB300),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              fluteCount == 2
+                                  ? '2 Ağızlı Kesici (Z=2): Genel delme ve derin deliklerde maksimum talaş tahliyesi sağlar.'
+                                  : '3 Ağızlı Kesici (Z=3): Havacılık sac ve titanyum perçin deliklerinde titreşimi önler, hassas dairesellik sağlar.',
+                              style: const TextStyle(fontSize: 10.5, color: Colors.white70),
                             ),
                           ),
                         ],
@@ -1938,10 +2083,14 @@ class _DrillTechnicalDrawingScreenState
                               onChanged: (v) => _updateShankParams(),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
                           Expanded(
                             child: _buildInputField(
-                              label: 'Somun Boyu',
+                              label: 'Somun Boyu (Kafa)',
                               controller: _hexLenController,
                               suffix: 'mm',
                               onChanged: (v) => _updateShankParams(),
@@ -1950,7 +2099,7 @@ class _DrillTechnicalDrawingScreenState
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildInputField(
-                              label: 'Somun Çapı',
+                              label: 'Somun Çapı (SW)',
                               controller: _hexWidthController,
                               suffix: 'mm',
                               onChanged: (v) => _updateShankParams(),
@@ -2008,9 +2157,9 @@ class _DrillTechnicalDrawingScreenState
                     ),
                     const SizedBox(height: 14),
 
-                    // Metrik Satırı 1 (d1, l2, l3, l1)
+                    // Metrik Ölçüler (İkişer İkişer Alt Alta)
                     const Text('Metrik Ölçüler (mm):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -2021,7 +2170,7 @@ class _DrillTechnicalDrawingScreenState
                             onChanged: (v) => _updateDrillFromMm(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildInputField(
                             label: 'Kesme Boyu (l2)',
@@ -2030,17 +2179,21 @@ class _DrillTechnicalDrawingScreenState
                             onChanged: (v) => _updateDrillFromMm(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
                         Expanded(
                           child: _buildInputField(
-                            label: 'Kullanılabilir (l3)',
+                            label: 'Kullanılabilir Boy (l3)',
                             controller: _reachLenMmController,
                             suffix: 'mm',
                             labelColor: const Color(0xFFFF5252),
                             onChanged: (v) => _updateDrillFromMm(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildInputField(
                             label: 'Tam Boy (l1)',
@@ -2052,8 +2205,6 @@ class _DrillTechnicalDrawingScreenState
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    // Metrik Satırı 2 (d3, d2)
                     Row(
                       children: [
                         Expanded(
@@ -2075,44 +2226,48 @@ class _DrillTechnicalDrawingScreenState
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
-                    // İnç Satırı
+                    // İnç Ölçüleri (İkişer İkişer Alt Alta)
                     const Text('İnç Ölçüleri (inch / "):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFFFB300))),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: _buildInputField(
-                            label: 'd1 (İnç)',
+                            label: 'Kesme Çapı - d1 (İnç)',
                             controller: _diamInController,
                             suffix: '"',
                             onChanged: (v) => _updateDrillFromInch(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildInputField(
-                            label: 'l2 (İnç)',
+                            label: 'Kesme Boyu - l2 (İnç)',
                             controller: _fluteLenInController,
                             suffix: '"',
                             onChanged: (v) => _updateDrillFromInch(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
                         Expanded(
                           child: _buildInputField(
-                            label: 'l3 (İnç)',
+                            label: 'Kullanılabilir Boy - l3 (İnç)',
                             controller: _reachLenInController,
                             suffix: '"',
                             labelColor: const Color(0xFFFFB300),
                             onChanged: (v) => _updateDrillFromInch(),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildInputField(
-                            label: 'l1 (İnç)',
+                            label: 'Tam Boy - l1 (İnç)',
                             controller: _totalLenInController,
                             suffix: '"',
                             onChanged: (v) => _updateDrillFromInch(),
@@ -2249,6 +2404,7 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
   final double hexLength;
   final double threadDiameter;
   final double hexWidth;
+  final int fluteCount;
 
   const IndustrialCatalogDrillPainter({
     required this.isCatalogWhiteMode,
@@ -2266,6 +2422,7 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
     required this.hexLength,
     required this.threadDiameter,
     required this.hexWidth,
+    this.fluteCount = 2,
   });
 
   @override
@@ -2364,9 +2521,10 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
       canvas.drawLine(Offset(tipX + 4, centerY + halfD1 * 0.4), Offset(tipX, centerY), Paint()..color = strokeCol..strokeWidth = 1.2);
     }
 
-    // Helis Kanalları (3 dalga, çift hatlı marj)
+    // Helis Kanalları (fluteCount: 2 ise 3 dalga, 3 ise 4 dalga)
     final fluteBodyLen = fluteEndX - fluteStartX;
-    final waveStep = fluteBodyLen / 3.0;
+    final int waveCount = (fluteCount == 3) ? 4 : 3;
+    final waveStep = fluteBodyLen / waveCount;
 
     final helixLinePaint = Paint()..color = strokeCol..strokeWidth = 1.4..style = PaintingStyle.stroke;
     final marginPaint = Paint()
@@ -2374,7 +2532,7 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < waveCount; i++) {
       final double wx = fluteStartX + i * waveStep;
       final path = Path()
         ..moveTo(wx, centerY - halfD1)
@@ -2386,6 +2544,16 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
         ..cubicTo(wx + waveStep * 0.45 + 3.0, centerY - halfD1 * 0.3, wx + waveStep * 0.55 + 3.0, centerY + halfD1 * 0.3, wx + waveStep + 3.0, centerY + halfD1);
       canvas.drawPath(marginPath, marginPaint);
     }
+
+    // Kesici Ağız Sayısı Belirteci (Z=2 veya Z=3)
+    _drawText(
+      canvas,
+      'Z=$fluteCount (${fluteCount == 2 ? "2 Ağızlı" : "3 Ağızlı"})',
+      Offset((fluteStartX + fluteEndX) / 2, centerY - halfD1 - 9),
+      isCatalogWhiteMode ? const Color(0xFF0D6EFD) : const Color(0xFF00E5FF),
+      isCentered: true,
+      isBold: true,
+    );
 
     // Helis Çıkış Kavis Geçişi (Fillet)
     final runoutTop = Path()
@@ -2720,7 +2888,8 @@ class IndustrialCatalogDrillPainter extends CustomPainter {
         oldDelegate.threadLength != threadLength ||
         oldDelegate.hexLength != hexLength ||
         oldDelegate.threadDiameter != threadDiameter ||
-        oldDelegate.hexWidth != hexWidth;
+        oldDelegate.hexWidth != hexWidth ||
+        oldDelegate.fluteCount != fluteCount;
   }
 }
 
@@ -2748,6 +2917,7 @@ class Tool3DModelPainter extends CustomPainter {
   final double hexLength;
   final double hexWidth;
   final Color coatingColor;
+  final int fluteCount;
 
   Tool3DModelPainter({
     required this.rotX,
@@ -2769,6 +2939,7 @@ class Tool3DModelPainter extends CustomPainter {
     required this.hexLength,
     required this.hexWidth,
     required this.coatingColor,
+    this.fluteCount = 2,
   });
 
   @override
@@ -2846,19 +3017,21 @@ class Tool3DModelPainter extends CustomPainter {
         ));
       }
     } else {
-      // Matkap Ucu: Konik Uç ve Havacılık Split Point Yüzeyleri (NAS 907)
+      // Matkap Ucu: Konik Uç ve Havacılık Split Point Yüzeyleri (NAS 907 - Z=2 veya Z=3)
       final _Vec3 apex = _Vec3(tipX, 0, 0);
+      final double tipPitch = 2 * math.pi / fluteCount;
       for (int i = 0; i < radialSegments; i++) {
         final double th1 = i * angleStep;
         final double th2 = (i + 1) * angleStep;
         final v1 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
         final v2 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
 
-        // 135° Split point bileme yüzeyleri ayrımı
+        // Split point bileme yüzeyleri ayrımı
         final double midAngle = (th1 + th2) / 2;
-        final double normalizedMid = midAngle % math.pi;
-        final bool isPrimaryRelief = (normalizedMid >= 0.35 && normalizedMid <= 1.25);
-        final bool isSplitFacet = (normalizedMid >= 1.25 && normalizedMid <= 1.70);
+        final double normalizedMid = midAngle % tipPitch;
+        final double uTip = normalizedMid / tipPitch;
+        final bool isPrimaryRelief = (uTip >= 0.12 && uTip <= 0.40);
+        final bool isSplitFacet = (uTip >= 0.40 && uTip <= 0.55);
 
         Color tipFacetCol = coatingColor;
         if (isPrimaryRelief) {
@@ -2874,10 +3047,11 @@ class Tool3DModelPainter extends CustomPainter {
       }
     }
 
-    // B. Yüksek Hassasiyetli Helis Kanallı Gövde (Twist Drill Flutes & Margins)
+    // B. Yüksek Hassasiyetli Helis Kanallı Gövde (Twist Drill Flutes & Margins - Z=2 / Z=3)
     final double fluteEndX = tipX + fluteLength;
     const int fluteSlices = 28;
     final double sliceStep = (fluteEndX - fluteStartX) / fluteSlices;
+    final double flutePitch = 2 * math.pi / fluteCount;
 
     for (int s = 0; s < fluteSlices; s++) {
       final double x0 = fluteStartX + s * sliceStep;
@@ -2893,10 +3067,10 @@ class Tool3DModelPainter extends CustomPainter {
         final double angleA = i * angleStep;
         final double angleB = (i + 1) * angleStep;
 
-        final double r0A = _calcFluteRadius(angleA, r1, webRatio0);
-        final double r0B = _calcFluteRadius(angleB, r1, webRatio0);
-        final double r1A = _calcFluteRadius(angleA, r1, webRatio1);
-        final double r1B = _calcFluteRadius(angleB, r1, webRatio1);
+        final double r0A = _calcFluteRadius(angleA, r1, webRatio0, fluteCount);
+        final double r0B = _calcFluteRadius(angleB, r1, webRatio0, fluteCount);
+        final double r1A = _calcFluteRadius(angleA, r1, webRatio1, fluteCount);
+        final double r1B = _calcFluteRadius(angleB, r1, webRatio1, fluteCount);
 
         final double th0A = angleA + twist0;
         final double th0B = angleB + twist0;
@@ -2909,14 +3083,15 @@ class Tool3DModelPainter extends CustomPainter {
         final v1A = _Vec3(x1, r1A * math.cos(th1A), r1A * math.sin(th1A));
 
         // Yüzey tipi: Talaş kanalı içi, Taşlanmış parlak marj şeridi, Sırt boşluğu
-        final double phi = angleA % math.pi;
-        final double symPhi = (phi > math.pi / 2) ? (math.pi - phi) : phi;
+        final double phi = angleA % flutePitch;
+        final double symPhi = (phi > flutePitch / 2) ? (flutePitch - phi) : phi;
+        final double u = symPhi / (flutePitch / 2);
 
         Color quadColor;
-        if (symPhi < 0.58) {
+        if (u < 0.38) {
           // Talaş Kanalı Çukuru (Karanlık/Mat İç Yüzey)
           quadColor = const Color(0xFF141C24);
-        } else if (symPhi < 0.74) {
+        } else if (u < 0.52) {
           // Taşlanmış Parlak Marj Şeridi (Land Margin)
           quadColor = Color.lerp(coatingColor, Colors.white, 0.45)!;
         } else {
@@ -3164,15 +3339,17 @@ class Tool3DModelPainter extends CustomPainter {
     _drawCoordinateTripod(canvas, Offset(46, size.height - 46));
   }
 
-  double _calcFluteRadius(double angle, double r1, double webRatio) {
-    final double phi = angle % math.pi;
-    final double symPhi = (phi > math.pi / 2) ? (math.pi - phi) : phi;
+  double _calcFluteRadius(double angle, double r1, double webRatio, int flutes) {
+    final double pitch = 2 * math.pi / flutes;
+    final double phi = angle % pitch;
+    final double symPhi = (phi > pitch / 2) ? (pitch - phi) : phi;
+    final double u = symPhi / (pitch / 2);
 
-    if (symPhi < 0.58) {
+    if (u < 0.38) {
       // Talaş kanalı oyuğu (parabolik çukur)
-      final double t = symPhi / 0.58;
+      final double t = u / 0.38;
       return r1 * (webRatio + (1.0 - webRatio) * (t * t));
-    } else if (symPhi < 0.74) {
+    } else if (u < 0.52) {
       // Marj şeridi (full çap)
       return r1;
     } else {
@@ -3315,7 +3492,8 @@ class Tool3DModelPainter extends CustomPainter {
         oldDelegate.threadDiameter != threadDiameter ||
         oldDelegate.hexLength != hexLength ||
         oldDelegate.hexWidth != hexWidth ||
-        oldDelegate.coatingColor != coatingColor;
+        oldDelegate.coatingColor != coatingColor ||
+        oldDelegate.fluteCount != fluteCount;
   }
 }
 
