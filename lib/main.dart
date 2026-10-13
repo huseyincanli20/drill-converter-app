@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -115,6 +116,8 @@ class _DrillTechnicalDrawingScreenState
   bool isAutoRotating = false;
   bool is3DWireframe = false;
   String renderStyle3D = 'solid'; // 'solid' (Katı Model) veya 'wireframe' (Tel Kafes)
+  double _baseZoom = 1.0;
+  Offset _lastFocalPoint = Offset.zero;
   late final AnimationController _autoRotateController;
 
   // Uç Açısı ve Geometri Listesi
@@ -420,6 +423,7 @@ class _DrillTechnicalDrawingScreenState
   }
 
   void _applyTipAngle(Map<String, dynamic> item) {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       selectedTipId = item['id'] as String;
       pointAngle = (item['angle'] as num).toDouble();
@@ -510,6 +514,7 @@ class _DrillTechnicalDrawingScreenState
   }
 
   void _applyPreset(Map<String, dynamic> item) {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       selectedModel = item['label'];
       drillDiameter = item['dMm'];
@@ -1105,9 +1110,13 @@ class _DrillTechnicalDrawingScreenState
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      body: GestureDetector(
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Havacılık Standart Presetleri
@@ -1418,18 +1427,39 @@ class _DrillTechnicalDrawingScreenState
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: is3DMode
-                            ? GestureDetector(
-                                onPanUpdate: (details) {
-                                  if (isAutoRotating) {
-                                    _toggleAutoRotate();
+                            ? Listener(
+                                onPointerSignal: (pointerSignal) {
+                                  if (pointerSignal is PointerScrollEvent) {
+                                    setState(() {
+                                      if (pointerSignal.scrollDelta.dy < 0) {
+                                        zoom3D = (zoom3D * 1.10).clamp(0.35, 5.0);
+                                      } else {
+                                        zoom3D = (zoom3D * 0.91).clamp(0.35, 5.0);
+                                      }
+                                    });
                                   }
-                                  setState(() {
-                                    rotY += details.delta.dx * 0.012;
-                                    rotX = (rotX - details.delta.dy * 0.012).clamp(-math.pi * 0.48, math.pi * 0.48);
-                                  });
                                 },
-                                onDoubleTap: _reset3DView,
-                                child: Stack(
+                                child: GestureDetector(
+                                  onScaleStart: (details) {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    _baseZoom = zoom3D;
+                                    _lastFocalPoint = details.focalPoint;
+                                    if (isAutoRotating) _toggleAutoRotate();
+                                  },
+                                  onScaleUpdate: (details) {
+                                    setState(() {
+                                      if (details.pointerCount > 1) {
+                                        zoom3D = (_baseZoom * details.scale).clamp(0.35, 5.0);
+                                      } else {
+                                        final delta = details.focalPoint - _lastFocalPoint;
+                                        rotY += delta.dx * 0.012;
+                                        rotX = (rotX - delta.dy * 0.012).clamp(-math.pi * 0.48, math.pi * 0.48);
+                                      }
+                                      _lastFocalPoint = details.focalPoint;
+                                    });
+                                  },
+                                  onDoubleTap: _reset3DView,
+                                  child: Stack(
                                   children: [
                                     CustomPaint(
                                       size: Size.infinite,
@@ -1496,7 +1526,8 @@ class _DrillTechnicalDrawingScreenState
                                     ),
                                   ],
                                 ),
-                              )
+                              ),
+                            )
                             : InteractiveViewer(
                                 transformationController: _transformController,
                                 minScale: 0.5,
@@ -2114,7 +2145,8 @@ class _DrillTechnicalDrawingScreenState
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildParamChip(String label, String value, Color color, {bool isHighlight = false}) {
@@ -2167,12 +2199,21 @@ class _DrillTechnicalDrawingScreenState
         TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           onChanged: onChanged,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           decoration: InputDecoration(
             suffixText: suffix,
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.check_circle_outline, size: 15, color: Color(0xFF00E5FF)),
+              tooltip: 'Klavyeyi Kapat',
+              onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+            ),
             filled: true,
             fillColor: const Color(0xFF0F141C),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFF232E3E)),
@@ -2733,14 +2774,14 @@ class Tool3DModelPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // 1. Teknik CAD Izgara & Arka Plan
-    final bgPaint = Paint()..color = const Color(0xFF090E17);
+    final bgPaint = Paint()..color = const Color(0xFF070B12);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     final gridPaintMinor = Paint()
-      ..color = const Color(0xFF131D2A)
-      ..strokeWidth = 0.6;
+      ..color = const Color(0xFF0F1824)
+      ..strokeWidth = 0.5;
     final gridPaintMajor = Paint()
-      ..color = const Color(0xFF1C2C3F)
+      ..color = const Color(0xFF162334)
       ..strokeWidth = 1.0;
 
     for (double x = 0; x < size.width; x += 15) {
@@ -2753,49 +2794,59 @@ class Tool3DModelPainter extends CustomPainter {
     // 2. 3D Geometri Üretimi
     final List<_Face3D> rawFaces = [];
 
-    // Boyut oranlamaları (3D modelin koordinat birimleri: mm)
     final double r1 = drillDiameter / 2;
     final double r2 = shankDiameter / 2;
     final double r3 = neckDiameter / 2;
     final double tipX = -totalLength / 2;
     final double shankX = totalLength / 2;
 
-    // Matkap veya Düz Freze Ucu
     final bool isEndMill = (toolTipType == 'endmill' || pointAngle >= 175.0);
     final double pointLen = isEndMill
         ? 0.0
         : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
 
-    const int radialSegments = 16;
+    const int radialSegments = 32;
     const double angleStep = 2 * math.pi / radialSegments;
 
     // A. Uç (Tip) Modeli
     final double fluteStartX = tipX + pointLen;
     if (isEndMill) {
-      // Düz Freze: Düz ön ayna yüzeyi (End-Mill Face)
+      // Düz Freze: Düz ön alın yüzeyi (End-Mill Flat Face) & 4 Kesici Ağız
       final List<_Vec3> diskVertices = [];
       for (int i = 0; i < radialSegments; i++) {
         final double theta = i * angleStep;
-        diskVertices.add(_Vec3(fluteStartX, r1 * math.cos(theta), r1 * math.sin(theta)));
+        diskVertices.add(_Vec3(fluteStartX, r1 * 0.92 * math.cos(theta), r1 * 0.92 * math.sin(theta)));
       }
       rawFaces.add(_Face3D(
         vertices: diskVertices,
-        color: coatingColor.withOpacity(0.95),
+        color: coatingColor,
       ));
-      // Kesici ağız gash çizgileri
+
+      // Köşe Pahı (Corner Chamfer 45°)
+      for (int i = 0; i < radialSegments; i++) {
+        final double th1 = i * angleStep;
+        final double th2 = (i + 1) * angleStep;
+        final v1 = _Vec3(fluteStartX, r1 * 0.92 * math.cos(th1), r1 * 0.92 * math.sin(th1));
+        final v2 = _Vec3(fluteStartX, r1 * 0.92 * math.cos(th2), r1 * 0.92 * math.sin(th2));
+        final v3 = _Vec3(fluteStartX + 0.35, r1 * math.cos(th2), r1 * math.sin(th2));
+        final v4 = _Vec3(fluteStartX + 0.35, r1 * math.cos(th1), r1 * math.sin(th1));
+        rawFaces.add(_Face3D(vertices: [v1, v2, v3, v4], color: Color.lerp(coatingColor, Colors.white, 0.25)!));
+      }
+
+      // Alın gash çizgileri
       for (int i = 0; i < 4; i++) {
         final double th = i * (math.pi / 2);
         rawFaces.add(_Face3D(
           vertices: [
-            _Vec3(fluteStartX - 0.2, 0, 0),
-            _Vec3(fluteStartX - 0.2, r1 * math.cos(th), r1 * math.sin(th)),
+            _Vec3(fluteStartX - 0.1, 0, 0),
+            _Vec3(fluteStartX - 0.1, r1 * 0.90 * math.cos(th), r1 * 0.90 * math.sin(th)),
           ],
           color: Colors.white,
           isEdgeOnly: true,
         ));
       }
     } else {
-      // Matkap Ucu: Konik Uç ve Split Point Yüzeyleri
+      // Matkap Ucu: Konik Uç ve Havacılık Split Point Yüzeyleri (NAS 907)
       final _Vec3 apex = _Vec3(tipX, 0, 0);
       for (int i = 0; i < radialSegments; i++) {
         final double th1 = i * angleStep;
@@ -2803,11 +2854,18 @@ class Tool3DModelPainter extends CustomPainter {
         final v1 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
         final v2 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
 
-        // Split point bileme yüzeyi ayrımı
-        final bool isPrimaryRelief = (i >= 2 && i <= 5) || (i >= 10 && i <= 13);
-        final Color tipFacetCol = isPrimaryRelief
-            ? coatingColor.withOpacity(0.95)
-            : Color.lerp(coatingColor, Colors.white, 0.2)!.withOpacity(0.95);
+        // 135° Split point bileme yüzeyleri ayrımı
+        final double midAngle = (th1 + th2) / 2;
+        final double normalizedMid = midAngle % math.pi;
+        final bool isPrimaryRelief = (normalizedMid >= 0.35 && normalizedMid <= 1.25);
+        final bool isSplitFacet = (normalizedMid >= 1.25 && normalizedMid <= 1.70);
+
+        Color tipFacetCol = coatingColor;
+        if (isPrimaryRelief) {
+          tipFacetCol = Color.lerp(coatingColor, Colors.white, 0.22)!;
+        } else if (isSplitFacet) {
+          tipFacetCol = Color.lerp(coatingColor, const Color(0xFFFFB300), 0.35)!;
+        }
 
         rawFaces.add(_Face3D(
           vertices: [apex, v1, v2],
@@ -2816,9 +2874,9 @@ class Tool3DModelPainter extends CustomPainter {
       }
     }
 
-    // B. Helis Kanallı Gövde (Fluted Cutting Body)
+    // B. Yüksek Hassasiyetli Helis Kanallı Gövde (Twist Drill Flutes & Margins)
     final double fluteEndX = tipX + fluteLength;
-    const int fluteSlices = 14;
+    const int fluteSlices = 28;
     final double sliceStep = (fluteEndX - fluteStartX) / fluteSlices;
 
     for (int s = 0; s < fluteSlices; s++) {
@@ -2828,27 +2886,43 @@ class Tool3DModelPainter extends CustomPainter {
       final double twist0 = ((x0 - fluteStartX) / fluteLength) * 2.2 * math.pi;
       final double twist1 = ((x1 - fluteStartX) / fluteLength) * 2.2 * math.pi;
 
+      final double webRatio0 = (0.58 + 0.10 * (s / fluteSlices));
+      final double webRatio1 = (0.58 + 0.10 * ((s + 1) / fluteSlices));
+
       for (int i = 0; i < radialSegments; i++) {
-        final double th0A = i * angleStep + twist0;
-        final double th0B = (i + 1) * angleStep + twist0;
-        final double th1A = i * angleStep + twist1;
-        final double th1B = (i + 1) * angleStep + twist1;
+        final double angleA = i * angleStep;
+        final double angleB = (i + 1) * angleStep;
 
-        // Helis derinliği (İki talaş kanalı oyuntusu)
-        final double depthFactor0A = (math.sin(2 * (i * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
-        final double depthFactor0B = (math.sin(2 * ((i + 1) * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
-        final double depthFactor1A = (math.sin(2 * (i * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
-        final double depthFactor1B = (math.sin(2 * ((i + 1) * angleStep)).abs() > 0.55) ? 0.76 : 1.0;
+        final double r0A = _calcFluteRadius(angleA, r1, webRatio0);
+        final double r0B = _calcFluteRadius(angleB, r1, webRatio0);
+        final double r1A = _calcFluteRadius(angleA, r1, webRatio1);
+        final double r1B = _calcFluteRadius(angleB, r1, webRatio1);
 
-        final v0A = _Vec3(x0, r1 * depthFactor0A * math.cos(th0A), r1 * depthFactor0A * math.sin(th0A));
-        final v0B = _Vec3(x0, r1 * depthFactor0B * math.cos(th0B), r1 * depthFactor0B * math.sin(th0B));
-        final v1B = _Vec3(x1, r1 * depthFactor1B * math.cos(th1B), r1 * depthFactor1B * math.sin(th1B));
-        final v1A = _Vec3(x1, r1 * depthFactor1A * math.cos(th1A), r1 * depthFactor1A * math.sin(th1A));
+        final double th0A = angleA + twist0;
+        final double th0B = angleB + twist0;
+        final double th1A = angleA + twist1;
+        final double th1B = angleB + twist1;
 
-        final bool isFluteGroove = (depthFactor0A < 0.9);
-        final Color quadColor = isFluteGroove
-            ? const Color(0xFF1E2833)
-            : coatingColor;
+        final v0A = _Vec3(x0, r0A * math.cos(th0A), r0A * math.sin(th0A));
+        final v0B = _Vec3(x0, r0B * math.cos(th0B), r0B * math.sin(th0B));
+        final v1B = _Vec3(x1, r1B * math.cos(th1B), r1B * math.sin(th1B));
+        final v1A = _Vec3(x1, r1A * math.cos(th1A), r1A * math.sin(th1A));
+
+        // Yüzey tipi: Talaş kanalı içi, Taşlanmış parlak marj şeridi, Sırt boşluğu
+        final double phi = angleA % math.pi;
+        final double symPhi = (phi > math.pi / 2) ? (math.pi - phi) : phi;
+
+        Color quadColor;
+        if (symPhi < 0.58) {
+          // Talaş Kanalı Çukuru (Karanlık/Mat İç Yüzey)
+          quadColor = const Color(0xFF141C24);
+        } else if (symPhi < 0.74) {
+          // Taşlanmış Parlak Marj Şeridi (Land Margin)
+          quadColor = Color.lerp(coatingColor, Colors.white, 0.45)!;
+        } else {
+          // Sırt Boşluğu (Heel Clearance)
+          quadColor = coatingColor;
+        }
 
         rawFaces.add(_Face3D(
           vertices: [v0A, v0B, v1B, v1A],
@@ -2857,37 +2931,37 @@ class Tool3DModelPainter extends CustomPainter {
       }
     }
 
-    // C. Boyun (Neck - d3)
+    // C. Pürüzsüz Boyun Geçişi (Smooth Fillet Neck - d3)
     final double reachEndX = tipX + reachLength;
     if (reachLength > fluteLength + 1.0) {
-      // Helisten boyuna geçiş koniği
-      final double transitionLen = math.min(3.0, (reachEndX - fluteEndX) * 0.3);
-      final double neckStartX = fluteEndX + transitionLen;
-      final double neckEndX = reachEndX - transitionLen;
+      final double blendLen = math.min(2.5, (reachEndX - fluteEndX) * 0.25);
+      final double neckStartX = fluteEndX + blendLen;
+      final double neckMidEndX = reachEndX - blendLen;
 
-      // Koni 1
-      _addCylinderRing(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, const Color(0xFF334252));
-      // Boyun silindiri
-      _addCylinderRing(rawFaces, neckStartX, neckEndX, r3, r3, radialSegments, const Color(0xFF2C3947));
-      // Koni 2 (Boyundan Sapa geçiş)
-      _addCylinderRing(rawFaces, neckEndX, reachEndX, r3, r2, radialSegments, const Color(0xFF334252));
+      // Kavisli Geçiş 1 (Gövdeden Boyuna 3-kademeli yumuşak geçiş)
+      _addSmoothFillet(rawFaces, fluteEndX, neckStartX, r1, r3, radialSegments, 3, const Color(0xFF2C3947));
+      // Boyun Silindiri
+      _addCylinderRing(rawFaces, neckStartX, neckMidEndX, r3, r3, radialSegments, const Color(0xFF25303D));
+      // Kavisli Geçiş 2 (Boyundan Sapa 3-kademeli yumuşak geçiş)
+      _addSmoothFillet(rawFaces, neckMidEndX, reachEndX, r3, r2, radialSegments, 3, const Color(0xFF2C3947));
     }
 
     // D. Sap (Shank)
     if (!hasThreadedShank) {
       // Düz Silindirik Sap
       final double chamferStart = shankX - 2.0;
-      _addCylinderRing(rawFaces, reachEndX, chamferStart, r2, r2, radialSegments, const Color(0xFF475569));
-      // Pah ve arka kapak
-      _addCylinderRing(rawFaces, chamferStart, shankX, r2, r2 * 0.7, radialSegments, const Color(0xFF3B4856));
+      _addCylinderRing(rawFaces, reachEndX, chamferStart, r2, r2, radialSegments, const Color(0xFF4A5A6D));
+      // 45° Pah
+      _addCylinderRing(rawFaces, chamferStart, shankX, r2, r2 * 0.72, radialSegments, const Color(0xFF384655));
+      // Arka Kapak
       final List<_Vec3> endCap = [];
       for (int i = 0; i < radialSegments; i++) {
         final double theta = i * angleStep;
-        endCap.add(_Vec3(shankX, r2 * 0.7 * math.cos(theta), r2 * 0.7 * math.sin(theta)));
+        endCap.add(_Vec3(shankX, r2 * 0.72 * math.cos(theta), r2 * 0.72 * math.sin(theta)));
       }
-      rawFaces.add(_Face3D(vertices: endCap, color: const Color(0xFF2C3947)));
+      rawFaces.add(_Face3D(vertices: endCap, color: const Color(0xFF222B35)));
     } else {
-      // STANDART NAS 965: Gövde -> Konik Geçiş -> 6-Gen Somun Kafa -> 1/4"-28 Vida (Uçta)
+      // STANDART NAS 965: Gövde -> Konik Geçiş -> 6-Gen Somun Kafa (Pahlı) -> 1/4"-28 Vida (Uçta)
       final double threadEndX = shankX;
       final double threadStartX = threadEndX - threadLength;
       final double hexEndX = threadStartX;
@@ -2896,65 +2970,85 @@ class Tool3DModelPainter extends CustomPainter {
 
       // Gövde Silindiri
       _addCylinderRing(rawFaces, reachEndX, bodyEndX, r2, r2, radialSegments, const Color(0xFF475569));
-      // Konik Omuz (Gövdeden 6-Gen Somuna)
+      // Konik Omuz
       final double hexRadius = (hexWidth / 2) / math.cos(math.pi / 6);
       _addCylinderRing(rawFaces, bodyEndX, hexStartX, r2, hexRadius * 0.95, radialSegments, const Color(0xFF334252));
 
-      // 6-Gen Somun Kafa (Hexagonal Prism - 6 Düz Yüzey)
+      // 6-Gen Somun Kafa (Havacılık 5/16" SW, 30° Ön ve Arka Pahlı / Double Chamfered Washer Face)
       const int hexSides = 6;
       const double hexAngleStep = 2 * math.pi / hexSides;
+      final double hexChamferLen = math.min(1.2, hexLength * 0.18);
+
       for (int i = 0; i < hexSides; i++) {
         final double th1 = i * hexAngleStep;
         final double th2 = (i + 1) * hexAngleStep;
-        final v1 = _Vec3(hexStartX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
-        final v2 = _Vec3(hexStartX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
-        final v3 = _Vec3(hexEndX, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
-        final v4 = _Vec3(hexEndX, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+
+        final v1 = _Vec3(hexStartX + hexChamferLen, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
+        final v2 = _Vec3(hexStartX + hexChamferLen, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v3 = _Vec3(hexEndX - hexChamferLen, hexRadius * math.cos(th2), hexRadius * math.sin(th2));
+        final v4 = _Vec3(hexEndX - hexChamferLen, hexRadius * math.cos(th1), hexRadius * math.sin(th1));
 
         final Color hexFaceColor = (i % 2 == 0)
-            ? const Color(0xFFCBD5E1)
-            : const Color(0xFF94A3B8);
+            ? const Color(0xFFD8E2EC)
+            : const Color(0xFF9EAFBF);
 
+        // Ana düz yüzey
         rawFaces.add(_Face3D(
           vertices: [v1, v2, v3, v4],
           color: hexFaceColor,
         ));
+
+        // Ön Pah (Washer Face Chamfer)
+        final v01 = _Vec3(hexStartX, hexRadius * 0.91 * math.cos(th1), hexRadius * 0.91 * math.sin(th1));
+        final v02 = _Vec3(hexStartX, hexRadius * 0.91 * math.cos(th2), hexRadius * 0.91 * math.sin(th2));
+        rawFaces.add(_Face3D(
+          vertices: [v01, v02, v2, v1],
+          color: Color.lerp(hexFaceColor, Colors.white, 0.2)!,
+        ));
+
+        // Arka Pah
+        final v03 = _Vec3(hexEndX, hexRadius * 0.91 * math.cos(th2), hexRadius * 0.91 * math.sin(th2));
+        final v04 = _Vec3(hexEndX, hexRadius * 0.91 * math.cos(th1), hexRadius * 0.91 * math.sin(th1));
+        rawFaces.add(_Face3D(
+          vertices: [v4, v3, v03, v04],
+          color: Color.lerp(hexFaceColor, Colors.black, 0.15)!,
+        ));
       }
 
-      // Vidalı Kısım (1/4"-28 Vida Dişli Silindir)
-      final double rThread = threadDiameter / 2;
-      const int threadRings = 9;
+      // 1/4"-28 UNF Vida Dişleri (Gerçek 60° V-Profili Diş Hatları)
+      final double rThreadMajor = threadDiameter / 2;
+      final double rThreadMinor = rThreadMajor * 0.86;
+      const int threadRings = 11;
       final double ringStep = threadLength / threadRings;
 
       for (int t = 0; t < threadRings; t++) {
         final double tx0 = threadStartX + t * ringStep;
-        final double tx1 = tx0 + ringStep * 0.6;
+        final double tx1 = tx0 + ringStep * 0.50;
         final double tx2 = tx0 + ringStep;
 
-        final double rPeak = rThread * 1.04;
-        final double rRoot = rThread * 0.88;
-
-        _addCylinderRing(rawFaces, tx0, tx1, rRoot, rPeak, radialSegments, const Color(0xFFFFB300));
-        _addCylinderRing(rawFaces, tx1, tx2, rPeak, rRoot, radialSegments, const Color(0xFFD97706));
+        // Diş Tepe Eğimi (Lead Flank)
+        _addCylinderRing(rawFaces, tx0, tx1, rThreadMinor, rThreadMajor, radialSegments, const Color(0xFFFFB300));
+        // Diş Taban Eğimi (Trailing Flank)
+        _addCylinderRing(rawFaces, tx1, tx2, rThreadMajor, rThreadMinor, radialSegments, const Color(0xFFC67D00));
       }
 
-      // Vida Uç Pahı & Ön Kapak
-      final double tipChamferStartX = threadEndX - 1.2;
-      _addCylinderRing(rawFaces, tipChamferStartX, threadEndX, rThread, rThread * 0.65, radialSegments, const Color(0xFF94A3B8));
+      // Vida Uç Pahı & Ön Kılavuz Burun (Dog Point Chamfer 45°)
+      final double tipChamferStartX = threadEndX - 1.4;
+      _addCylinderRing(rawFaces, tipChamferStartX, threadEndX, rThreadMajor, rThreadMinor * 0.75, radialSegments, const Color(0xFF94A3B8));
       final List<_Vec3> threadEndCap = [];
       for (int i = 0; i < radialSegments; i++) {
         final double theta = i * angleStep;
-        threadEndCap.add(_Vec3(threadEndX, rThread * 0.65 * math.cos(theta), rThread * 0.65 * math.sin(theta)));
+        threadEndCap.add(_Vec3(threadEndX, rThreadMinor * 0.75 * math.cos(theta), rThreadMinor * 0.75 * math.sin(theta)));
       }
       rawFaces.add(_Face3D(vertices: threadEndCap, color: const Color(0xFF475569)));
     }
 
-    // 3. 3D Döndürme & Projeksiyon
+    // 3. 3D Döndürme & Kamera Projeksiyonu
     final double maxDim = math.max(totalLength, math.max(drillDiameter, hexWidth) * 3);
     final double scale = (size.width * 0.72) / maxDim;
-    const double cameraDist = 450.0;
+    const double cameraDist = 480.0;
 
-    // Tüm yüzeylerin köşe noktalarını döndür
+    // Yüzeylerin köşe noktalarını 3D uzayda döndür
     final List<_Face3D> rotatedFaces = rawFaces.map((face) {
       final List<_Vec3> rotVertices = face.vertices.map((v) {
         return v.rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
@@ -2966,11 +3060,18 @@ class Tool3DModelPainter extends CustomPainter {
       );
     }).toList();
 
-    // 4. Painter's Algorithm: Derinliğe Göre Sıralama (Z derinliği en uzaktan en yakına)
+    // 4. Painter's Algorithm: Derinliğe Göre Sıralama
     rotatedFaces.sort((a, b) => a.averageZ.compareTo(b.averageZ));
 
-    // 5. Işık ve Çizim
-    final _Vec3 lightDir = const _Vec3(0.55, -0.75, -0.65).normalized;
+    // 5. Zemin Temas Gölgesi (Ambient Occlusion Drop Shadow)
+    if (!isWireframe) {
+      _drawGroundContactShadow(canvas, size, scale, cameraDist);
+    }
+
+    // 6. Stüdyo 3-Noktalı Aydınlatma ve Yüzey Çizimi
+    final _Vec3 keyLightDir = const _Vec3(0.55, -0.75, -0.65).normalized;
+    final _Vec3 fillLightDir = const _Vec3(-0.65, 0.40, -0.35).normalized;
+    final _Vec3 rimLightDir = const _Vec3(0.0, -0.85, 0.70).normalized;
     const _Vec3 eyeDir = _Vec3(0, 0, -1);
 
     final edgePaint = Paint()
@@ -2979,14 +3080,13 @@ class Tool3DModelPainter extends CustomPainter {
       ..strokeWidth = 1.0;
 
     final solidEdgePaint = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withOpacity(0.28)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.6;
+      ..strokeWidth = 0.5;
 
     for (final face in rotatedFaces) {
       if (face.vertices.length < 2) continue;
 
-      // 3D noktaları 2D ekrana projekte et
       final List<Offset> projectedPoints = face.vertices.map((v) {
         final double f = cameraDist / (cameraDist - v.z);
         final double px = size.width / 2 + v.x * scale * zoom * f;
@@ -3009,21 +3109,33 @@ class Tool3DModelPainter extends CustomPainter {
         // Tel Kafes Görünümü
         canvas.drawPath(path, edgePaint);
       } else {
-        // Katı Model: Phong / Gouraud Aydınlatmalı Metalik Yüzey
+        // PBR Metalik Aydınlatma Hesaplaması
         final normal = face.normal;
-        final double diff = math.max(0.0, -normal.dot(lightDir));
-        const double ambient = 0.32;
 
-        // Speküler Parlama
-        final double nDotL = normal.dot(lightDir);
-        final _Vec3 r = (lightDir - normal * (2 * nDotL)).normalized;
-        final double spec = math.pow(math.max(0.0, -r.dot(eyeDir)), 14) * 0.45;
+        // 1. Ana Işık (Key) Diffuse
+        final double keyDiff = math.max(0.0, -normal.dot(keyLightDir));
+        // 2. Dolgu Işık (Fill) Diffuse
+        final double fillDiff = math.max(0.0, -normal.dot(fillLightDir));
+        // 3. Arka Silüet Işık (Rim)
+        final double rimFactor = math.max(0.0, normal.dot(rimLightDir));
 
-        final double brightness = (ambient + diff * 0.60 + spec).clamp(0.18, 1.4);
+        const double ambient = 0.28;
+
+        // Blinn-Phong Speküler Parlama
+        final _Vec3 halfVector = (keyLightDir * -1.0 + eyeDir * -1.0).normalized;
+        final double nDotH = math.max(0.0, normal.dot(halfVector));
+        final double spec = math.pow(nDotH, 26) * 0.52;
+
+        // Fresnel Kenar Işıması
+        final double nDotV = math.max(0.0, -normal.dot(eyeDir));
+        final double fresnel = math.pow(1.0 - nDotV, 4.0) * 0.35;
+
+        final double brightness = (ambient + keyDiff * 0.55 + fillDiff * 0.22 + rimFactor * 0.18 + spec).clamp(0.18, 1.45);
 
         Color litColor = _shadeColor(face.color, brightness);
-        if (spec > 0.18) {
-          litColor = Color.lerp(litColor, Colors.white, (spec - 0.18) * 0.75)!;
+        if (spec > 0.15 || fresnel > 0.20) {
+          final double highHighlight = (spec * 0.7 + fresnel * 0.5).clamp(0.0, 1.0);
+          litColor = Color.lerp(litColor, Colors.white, highHighlight * 0.65)!;
         }
 
         final fillPaint = Paint()
@@ -3035,7 +3147,7 @@ class Tool3DModelPainter extends CustomPainter {
       }
     }
 
-    // 6. Eksen Çizgisi (Merkez Noktalı Eksen)
+    // 7. Eksen Çizgisi (Merkez Noktalı Eksen)
     final _Vec3 axisStart = const _Vec3(-100, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
     final _Vec3 axisEnd = const _Vec3(100, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
     final double fStart = cameraDist / (cameraDist - axisStart.z);
@@ -3044,12 +3156,29 @@ class Tool3DModelPainter extends CustomPainter {
     final pAxis2 = Offset(size.width / 2 + axisEnd.x * scale * zoom * fEnd, size.height / 2 + axisEnd.y * scale * zoom * fEnd);
 
     final axisPaint = Paint()
-      ..color = const Color(0xFFFF5252).withOpacity(0.4)
-      ..strokeWidth = 1.0;
+      ..color = const Color(0xFFFF5252).withOpacity(0.35)
+      ..strokeWidth = 0.9;
     canvas.drawLine(pAxis1, pAxis2, axisPaint);
 
-    // 7. 3D Koordinat Tripod (Sol Alt Köşe)
+    // 8. 3D Koordinat Tripod (Sol Alt Köşe)
     _drawCoordinateTripod(canvas, Offset(46, size.height - 46));
+  }
+
+  double _calcFluteRadius(double angle, double r1, double webRatio) {
+    final double phi = angle % math.pi;
+    final double symPhi = (phi > math.pi / 2) ? (math.pi - phi) : phi;
+
+    if (symPhi < 0.58) {
+      // Talaş kanalı oyuğu (parabolik çukur)
+      final double t = symPhi / 0.58;
+      return r1 * (webRatio + (1.0 - webRatio) * (t * t));
+    } else if (symPhi < 0.74) {
+      // Marj şeridi (full çap)
+      return r1;
+    } else {
+      // Sırt boşluğu
+      return r1 * 0.935;
+    }
   }
 
   void _addCylinderRing(
@@ -3078,6 +3207,54 @@ class Tool3DModelPainter extends CustomPainter {
     }
   }
 
+  void _addSmoothFillet(
+    List<_Face3D> faces,
+    double xStart,
+    double xEnd,
+    double rStart,
+    double rEnd,
+    int segments,
+    int steps,
+    Color color,
+  ) {
+    final double dx = (xEnd - xStart) / steps;
+    for (int s = 0; s < steps; s++) {
+      final double x0 = xStart + s * dx;
+      final double x1 = x0 + dx;
+      final double t0 = s / steps;
+      final double t1 = (s + 1) / steps;
+      // Sinüzoidal S-eğrisi yumuşatma
+      final double s0 = (1 - math.cos(t0 * math.pi)) / 2;
+      final double s1 = (1 - math.cos(t1 * math.pi)) / 2;
+      final double r0 = rStart + (rEnd - rStart) * s0;
+      final double r1 = rStart + (rEnd - rStart) * s1;
+      _addCylinderRing(faces, x0, x1, r0, r1, segments, color);
+    }
+  }
+
+  void _drawGroundContactShadow(Canvas canvas, Size size, double scale, double cameraDist) {
+    const double groundY = 28.0;
+    final _Vec3 center3D = const _Vec3(0, groundY, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
+    final double f = cameraDist / (cameraDist - center3D.z);
+    final double cx = size.width / 2 + center3D.x * scale * zoom * f;
+    final double cy = size.height / 2 + center3D.y * scale * zoom * f;
+
+    final double shadowWidth = (totalLength * 0.95 * scale * zoom * f).clamp(40.0, size.width * 0.85);
+    final double shadowHeight = (drillDiameter * 3.5 * scale * zoom * f).clamp(10.0, 45.0);
+
+    final shadowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.black.withOpacity(0.45),
+          Colors.black.withOpacity(0.18),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromCenter(center: Offset(cx, cy), width: shadowWidth, height: shadowHeight));
+
+    canvas.drawOval(Rect.fromCenter(center: Offset(cx, cy), width: shadowWidth, height: shadowHeight), shadowPaint);
+  }
+
   Color _shadeColor(Color col, double factor) {
     final int r = (col.red * factor).clamp(0, 255).toInt();
     final int g = (col.green * factor).clamp(0, 255).toInt();
@@ -3086,24 +3263,24 @@ class Tool3DModelPainter extends CustomPainter {
   }
 
   void _drawCoordinateTripod(Canvas canvas, Offset origin) {
-    const double len = 26.0;
+    const double len = 28.0;
     final _Vec3 vx = const _Vec3(len, 0, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
     final _Vec3 vy = const _Vec3(0, len, 0).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
     final _Vec3 vz = const _Vec3(0, 0, len).rotateX(rotX).rotateY(rotY).rotateZ(rotZ);
 
     // X: Kırmızı (Takım Ekseni)
     final pX = Offset(origin.dx + vx.x, origin.dy + vx.y);
-    canvas.drawLine(origin, pX, Paint()..color = const Color(0xFFFF5252)..strokeWidth = 2.0);
+    canvas.drawLine(origin, pX, Paint()..color = const Color(0xFFFF5252)..strokeWidth = 2.2);
     _drawText(canvas, 'X', pX, const Color(0xFFFF5252));
 
     // Y: Yeşil (Dikey)
     final pY = Offset(origin.dx + vy.x, origin.dy + vy.y);
-    canvas.drawLine(origin, pY, Paint()..color = const Color(0xFF69F0AE)..strokeWidth = 2.0);
+    canvas.drawLine(origin, pY, Paint()..color = const Color(0xFF69F0AE)..strokeWidth = 2.2);
     _drawText(canvas, 'Y', pY, const Color(0xFF69F0AE));
 
     // Z: Mavi (Derinlik)
     final pZ = Offset(origin.dx + vz.x, origin.dy + vz.y);
-    canvas.drawLine(origin, pZ, Paint()..color = const Color(0xFF40C4FF)..strokeWidth = 2.0);
+    canvas.drawLine(origin, pZ, Paint()..color = const Color(0xFF40C4FF)..strokeWidth = 2.2);
     _drawText(canvas, 'Z', pZ, const Color(0xFF40C4FF));
   }
 
@@ -3268,6 +3445,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
   }
 
   void _applyFraction(String fraction) {
+    FocusManager.instance.primaryFocus?.unfocus();
     _inchController.text = fraction;
     _convertFromInch(fraction);
   }
@@ -3278,54 +3456,74 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
       appBar: AppBar(
         title: const Text('Hassas Ölçü & Havacılık Tel/Numara Tablosu'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              color: const Color(0xFF171E28),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _inchController,
-                      keyboardType: TextInputType.text,
-                      onChanged: _convertFromInch,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      decoration: InputDecoration(
-                        labelText: 'İnç (in / " veya 1/4 kesir)',
-                        suffixText: 'inch',
-                        filled: true,
-                        fillColor: const Color(0xFF0F141C),
-                        prefixIcon: const Icon(Icons.straighten, color: Color(0xFF00E5FF)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      body: GestureDetector(
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                color: const Color(0xFF171E28),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _inchController,
+                        keyboardType: TextInputType.text,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onChanged: _convertFromInch,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: 'İnç (in / " veya 1/4 kesir)',
+                          suffixText: 'inch',
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFF00E5FF)),
+                            tooltip: 'Tamam',
+                            onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFF0F141C),
+                          prefixIcon: const Icon(Icons.straighten, color: Color(0xFF00E5FF)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Icon(Icons.swap_vert, color: Colors.grey, size: 28),
-                    ),
-                    TextField(
-                      controller: _mmController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: _convertFromMm,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      decoration: InputDecoration(
-                        labelText: 'Milimetre (mm)',
-                        suffixText: 'mm',
-                        filled: true,
-                        fillColor: const Color(0xFF0F141C),
-                        prefixIcon: const Icon(Icons.tune, color: Color(0xFFFFB300)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Icon(Icons.swap_vert, color: Colors.grey, size: 28),
                       ),
-                    ),
-                  ],
+                      TextField(
+                        controller: _mmController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                        onChanged: _convertFromMm,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          labelText: 'Milimetre (mm)',
+                          suffixText: 'mm',
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.check_circle_outline, size: 18, color: Color(0xFFFFB300)),
+                            tooltip: 'Tamam',
+                            onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFF0F141C),
+                          prefixIcon: const Icon(Icons.tune, color: Color(0xFFFFB300)),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 16),
 
             const Text(
@@ -3426,6 +3624,7 @@ class _UnitConverterScreenState extends State<UnitConverterScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
