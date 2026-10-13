@@ -2976,7 +2976,7 @@ class Tool3DModelPainter extends CustomPainter {
         ? 0.0
         : (r1 / math.tan((pointAngle / 2) * math.pi / 180)).clamp(1.2, r1 * 1.6);
 
-    const int radialSegments = 32;
+    const int radialSegments = 36;
     const double angleStep = 2 * math.pi / radialSegments;
 
     // A. Uç (Tip) Modeli
@@ -3017,33 +3017,151 @@ class Tool3DModelPainter extends CustomPainter {
         ));
       }
     } else {
-      // Matkap Ucu: Konik Uç ve Havacılık Split Point Yüzeyleri (NAS 907 - Z=2 veya Z=3)
-      final _Vec3 apex = _Vec3(tipX, 0, 0);
-      final double tipPitch = 2 * math.pi / fluteCount;
-      for (int i = 0; i < radialSegments; i++) {
-        final double th1 = i * angleStep;
-        final double th2 = (i + 1) * angleStep;
-        final v1 = _Vec3(fluteStartX, r1 * math.cos(th1), r1 * math.sin(th1));
-        final v2 = _Vec3(fluteStartX, r1 * math.cos(th2), r1 * math.sin(th2));
+      // GERÇEKÇİ MATKAP UCU: 2 AĞIZLI (Z=2) VEYA 3 AĞIZLI (Z=3) BİLEME VE KESİCİ AĞIZ MODELİ
+      final int flutes = fluteCount;
+      final int segmentsPerFlute = radialSegments ~/ flutes;
 
-        // Split point bileme yüzeyleri ayrımı
-        final double midAngle = (th1 + th2) / 2;
-        final double normalizedMid = midAngle % tipPitch;
-        final double uTip = normalizedMid / tipPitch;
-        final bool isPrimaryRelief = (uTip >= 0.12 && uTip <= 0.40);
-        final bool isSplitFacet = (uTip >= 0.40 && uTip <= 0.55);
+      if (flutes == 2) {
+        // ==========================================
+        // 2 AĞIZLI MATKAP UCU (Z = 2)
+        // 2 Adet 180° Karşılıklı Kesici Ağız, Öz Kenar (Chisel Edge) ve Havacılık Split Point Fasetleri
+        // ==========================================
+        final double halfWeb = (r1 * 0.08).clamp(0.2, 0.6);
+        const double chiselAngle = 135.0 * math.pi / 180.0;
+        final _Vec3 c1 = _Vec3(tipX, -halfWeb * math.cos(chiselAngle), -halfWeb * math.sin(chiselAngle));
+        final _Vec3 c2 = _Vec3(tipX, halfWeb * math.cos(chiselAngle), halfWeb * math.sin(chiselAngle));
 
-        Color tipFacetCol = coatingColor;
-        if (isPrimaryRelief) {
-          tipFacetCol = Color.lerp(coatingColor, Colors.white, 0.22)!;
-        } else if (isSplitFacet) {
-          tipFacetCol = Color.lerp(coatingColor, const Color(0xFFFFB300), 0.35)!;
+        for (int k = 0; k < 2; k++) {
+          final double baseAngle = k * math.pi;
+          final _Vec3 lipOrigin = (k == 0) ? c1 : c2;
+
+          for (int j = 0; j < segmentsPerFlute; j++) {
+            final double thA = baseAngle + j * angleStep;
+            final double thB = baseAngle + (j + 1) * angleStep;
+            final double tA = j / segmentsPerFlute;
+            final double tB = (j + 1) / segmentsPerFlute;
+            final double tMid = (tA + tB) / 2;
+
+            final double rBaseA = _calcFluteRadius(thA, r1, 0.58, 2);
+            final double rBaseB = _calcFluteRadius(thB, r1, 0.58, 2);
+
+            double dropA = 0.0;
+            double dropB = 0.0;
+            Color facetColor;
+
+            if (tMid < 0.42) {
+              // 1. Birincil Bileme Serbestlik Yüzeyi (Primary Lip Relief Facet)
+              dropA = (pointLen * 0.32) * (tA / 0.42);
+              dropB = (pointLen * 0.32) * (tB / 0.42);
+              facetColor = Color.lerp(coatingColor, Colors.white, 0.42)!;
+            } else if (tMid < 0.68) {
+              // 2. İkincil Serbestlik / Split Point Yüzeyi (Secondary Relief Facet)
+              final double dtA = (tA - 0.42) / 0.26;
+              final double dtB = (tB - 0.42) / 0.26;
+              dropA = (pointLen * 0.32) + (pointLen * 0.38) * dtA.clamp(0.0, 1.0);
+              dropB = (pointLen * 0.32) + (pointLen * 0.38) * dtB.clamp(0.0, 1.0);
+              facetColor = Color.lerp(coatingColor, const Color(0xFFFFB300), 0.35)!;
+            } else {
+              // 3. Talaş Kanalı Çıkışı (Flute Rake Gullet)
+              dropA = pointLen * 0.68;
+              dropB = pointLen * 0.68;
+              facetColor = const Color(0xFF141C24);
+            }
+
+            final double xBaseA = fluteStartX - (pointLen * 0.20) + (dropA * 0.5);
+            final double xBaseB = fluteStartX - (pointLen * 0.20) + (dropB * 0.5);
+
+            final vA = _Vec3(xBaseA, rBaseA * math.cos(thA), rBaseA * math.sin(thA));
+            final vB = _Vec3(xBaseB, rBaseB * math.cos(thB), rBaseB * math.sin(thB));
+
+            rawFaces.add(_Face3D(
+              vertices: [lipOrigin, vA, vB],
+              color: facetColor,
+            ));
+          }
+
+          // 2 Ağızlı Matkap Kesici Kenarları (Cutting Lips - Parlak Mavi/Camgöbeği)
+          final double lipAngle = baseAngle;
+          final _Vec3 lipOuter = _Vec3(fluteStartX, r1 * math.cos(lipAngle), r1 * math.sin(lipAngle));
+          final _Vec3 lipMid = _Vec3(tipX + pointLen * 0.45, (r1 * 0.5) * math.cos(lipAngle), (r1 * 0.5) * math.sin(lipAngle));
+          rawFaces.add(_Face3D(
+            vertices: [lipOrigin, lipMid, lipOuter],
+            color: const Color(0xFF00E5FF),
+            isEdgeOnly: true,
+          ));
         }
 
+        // Merkez Öz Kenar (Chisel Edge - Parlak Altın Sarısı)
         rawFaces.add(_Face3D(
-          vertices: [apex, v1, v2],
-          color: tipFacetCol,
+          vertices: [c1, c2],
+          color: const Color(0xFFFFB300),
+          isEdgeOnly: true,
         ));
+      } else {
+        // ==========================================
+        // 3 AĞIZLI MATKAP UCU (Z = 3)
+        // 3 Adet 120° Aralıklı Kesici Ağız, Piramit Merkez Uç ve 3-Helis Serbestlik Fasetleri
+        // ==========================================
+        final _Vec3 apex = _Vec3(tipX, 0, 0);
+
+        for (int k = 0; k < 3; k++) {
+          final double baseAngle = k * (2 * math.pi / 3);
+
+          for (int j = 0; j < segmentsPerFlute; j++) {
+            final double thA = baseAngle + j * angleStep;
+            final double thB = baseAngle + (j + 1) * angleStep;
+            final double tA = j / segmentsPerFlute;
+            final double tB = (j + 1) / segmentsPerFlute;
+            final double tMid = (tA + tB) / 2;
+
+            final double rBaseA = _calcFluteRadius(thA, r1, 0.58, 3);
+            final double rBaseB = _calcFluteRadius(thB, r1, 0.58, 3);
+
+            double dropA = 0.0;
+            double dropB = 0.0;
+            Color facetColor;
+
+            if (tMid < 0.42) {
+              // 1. Birincil Bileme Serbestlik Yüzeyi (Primary Lip Relief Facet)
+              dropA = (pointLen * 0.32) * (tA / 0.42);
+              dropB = (pointLen * 0.32) * (tB / 0.42);
+              facetColor = Color.lerp(coatingColor, Colors.white, 0.42)!;
+            } else if (tMid < 0.68) {
+              // 2. İkincil Serbestlik Faseti (Secondary Relief Facet)
+              final double dtA = (tA - 0.42) / 0.26;
+              final double dtB = (tB - 0.42) / 0.26;
+              dropA = (pointLen * 0.32) + (pointLen * 0.38) * dtA.clamp(0.0, 1.0);
+              dropB = (pointLen * 0.32) + (pointLen * 0.38) * dtB.clamp(0.0, 1.0);
+              facetColor = Color.lerp(coatingColor, const Color(0xFFFFB300), 0.35)!;
+            } else {
+              // 3. Talaş Kanalı Çıkışı (Flute Rake Gullet)
+              dropA = pointLen * 0.68;
+              dropB = pointLen * 0.68;
+              facetColor = const Color(0xFF141C24);
+            }
+
+            final double xBaseA = fluteStartX - (pointLen * 0.20) + (dropA * 0.5);
+            final double xBaseB = fluteStartX - (pointLen * 0.20) + (dropB * 0.5);
+
+            final vA = _Vec3(xBaseA, rBaseA * math.cos(thA), rBaseA * math.sin(thA));
+            final vB = _Vec3(xBaseB, rBaseB * math.cos(thB), rBaseB * math.sin(thB));
+
+            rawFaces.add(_Face3D(
+              vertices: [apex, vA, vB],
+              color: facetColor,
+            ));
+          }
+
+          // 3 Ağızlı Matkap Kesici Kenarları (3 Adet 120° Kesici Ağız - Parlak Mavi/Camgöbeği)
+          final double lipAngle = baseAngle;
+          final _Vec3 lipOuter = _Vec3(fluteStartX, r1 * math.cos(lipAngle), r1 * math.sin(lipAngle));
+          final _Vec3 lipMid = _Vec3(tipX + pointLen * 0.45, (r1 * 0.5) * math.cos(lipAngle), (r1 * 0.5) * math.sin(lipAngle));
+          rawFaces.add(_Face3D(
+            vertices: [apex, lipMid, lipOuter],
+            color: const Color(0xFF00E5FF),
+            isEdgeOnly: true,
+          ));
+        }
       }
     }
 
@@ -3083,20 +3201,23 @@ class Tool3DModelPainter extends CustomPainter {
         final v1A = _Vec3(x1, r1A * math.cos(th1A), r1A * math.sin(th1A));
 
         // Yüzey tipi: Talaş kanalı içi, Taşlanmış parlak marj şeridi, Sırt boşluğu
-        final double phi = angleA % flutePitch;
-        final double symPhi = (phi > flutePitch / 2) ? (flutePitch - phi) : phi;
-        final double u = symPhi / (flutePitch / 2);
+        double phi = angleA % flutePitch;
+        if (phi < 0) phi += flutePitch;
+        final double t = phi / flutePitch;
 
         Color quadColor;
-        if (u < 0.38) {
-          // Talaş Kanalı Çukuru (Karanlık/Mat İç Yüzey)
-          quadColor = const Color(0xFF141C24);
-        } else if (u < 0.52) {
-          // Taşlanmış Parlak Marj Şeridi (Land Margin)
-          quadColor = Color.lerp(coatingColor, Colors.white, 0.45)!;
-        } else {
+        if (t < 0.14) {
+          // Parlak Taşlanmış Marj Şeridi (Land Margin at cutting lip)
+          quadColor = Color.lerp(coatingColor, Colors.white, 0.50)!;
+        } else if (t < 0.45) {
           // Sırt Boşluğu (Heel Clearance)
           quadColor = coatingColor;
+        } else if (t < 0.88) {
+          // Talaş Kanalı Çukuru (Dark chip trough)
+          quadColor = const Color(0xFF141C24);
+        } else {
+          // Talaş Yüzeyi / Rake Face (Leading up to next cutting edge)
+          quadColor = Color.lerp(coatingColor, Colors.white, 0.22)!;
         }
 
         rawFaces.add(_Face3D(
@@ -3270,7 +3391,13 @@ class Tool3DModelPainter extends CustomPainter {
       }).toList();
 
       if (face.isEdgeOnly || face.vertices.length == 2) {
-        canvas.drawLine(projectedPoints[0], projectedPoints[1], edgePaint);
+        final linePaint = Paint()
+          ..color = face.color
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round;
+        for (int i = 0; i < projectedPoints.length - 1; i++) {
+          canvas.drawLine(projectedPoints[i], projectedPoints[i + 1], linePaint);
+        }
         continue;
       }
 
@@ -3341,20 +3468,26 @@ class Tool3DModelPainter extends CustomPainter {
 
   double _calcFluteRadius(double angle, double r1, double webRatio, int flutes) {
     final double pitch = 2 * math.pi / flutes;
-    final double phi = angle % pitch;
-    final double symPhi = (phi > pitch / 2) ? (pitch - phi) : phi;
-    final double u = symPhi / (pitch / 2);
+    double phi = angle % pitch;
+    if (phi < 0) phi += pitch;
+    final double t = phi / pitch;
 
-    if (u < 0.38) {
-      // Talaş kanalı oyuğu (parabolik çukur)
-      final double t = u / 0.38;
-      return r1 * (webRatio + (1.0 - webRatio) * (t * t));
-    } else if (u < 0.52) {
-      // Marj şeridi (full çap)
+    if (t < 0.14) {
+      // 1. Kesici Ağız ve Taşlanmış Marj Şeridi (Land margin at cutting edge)
       return r1;
+    } else if (t < 0.45) {
+      // 2. Sırt Boşluğu (Heel clearance behind cutting edge)
+      final double smooth = (t - 0.14) / 0.31;
+      return r1 * (1.0 - 0.065 * (smooth * smooth));
+    } else if (t < 0.88) {
+      // 3. Talaş Kanalı Çukuru (Deep chip flute trough)
+      final double uGullet = (t - 0.45) / 0.43;
+      final double dip = math.sin(uGullet * math.pi);
+      return r1 * (1.0 - (1.0 - webRatio) * dip);
     } else {
-      // Sırt boşluğu
-      return r1 * 0.935;
+      // 4. Talaş Yüzeyi (Rake face climbing back up to next cutting lip)
+      final double uRake = (t - 0.88) / 0.12;
+      return r1 * (webRatio + (1.0 - webRatio) * (uRake * uRake));
     }
   }
 
