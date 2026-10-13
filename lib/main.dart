@@ -519,13 +519,7 @@ class _DrillTechnicalDrawingScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.flight_takeoff, color: Color(0xFF00E5FF)),
-            SizedBox(width: 10),
-            Text('1/4"-28 Threaded Shank Havacilik Matkabi'),
-          ],
-        ),
+        title: const Icon(Icons.flight_takeoff, color: Color(0xFF00E5FF)),
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
